@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "strict": true,
+        "skipLibCheck": true,
+        "noEmit": true,
+        "allowJs": true,
+        "checkJs": false,
+        "esModuleInterop": true,
+        "isolatedModules": true,
+        "resolveJsonModule": true,
+        "types": ["chrome", "vite/client"],
+        "baseUrl": ".",
+        "paths": {
+            "@page-agent/core": ["./src/vendor/core/PageAgentCore.ts"],
+            "@page-agent/page-controller": ["./src/vendor/page-controller/PageController.ts"],
+            "@page-agent/llms": ["./src/vendor/llms/index.ts"]
+        }
+    },
+    "include": ["src"]
+}

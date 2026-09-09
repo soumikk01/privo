@@ -1,0 +1,26 @@
+{
+    "name": "@privo/extension",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "description": "Privo — Control web pages with natural language: multi-tab automation plus screenshot capture.",
+    "scripts": {
+        "dev": "concurrently \"vite build -c build/vite.panel.ts --watch\" \"vite build -c build/vite.background.ts --watch\" \"vite build -c build/vite.content.ts --watch\"",
+        "build": "vite build -c build/vite.panel.ts && vite build -c build/vite.background.ts && vite build -c build/vite.content.ts",
+        "typecheck": "tsc --noEmit",
+        "package": "cd dist && zip -qr ../deccan-page-agent-ext.zip ."
+    },
+    "dependencies": {
+        "ai-motion": "^0.4.8",
+        "chalk": "^6.0.0",
+        "zod": "^4.4.3"
+    },
+    "devDependencies": {
+        "@types/chrome": "^0.2.2",
+        "concurrently": "^10.0.5",
+        "sharp": "^0.35.4",
+        "typescript": "^5.7.2",
+        "vite": "^6.3.5",
+        "vite-plugin-css-injected-by-js": "^3.5.2"
+    }
+}
