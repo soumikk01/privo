@@ -1,5 +1,5 @@
 {
-  "name": "privo-page-agent-ext-be",
+  "name": "@privo/backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
