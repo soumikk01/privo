@@ -1,4 +1,4 @@
-  <p align="center">
+<p align="center">
   <img src="./assets/privo-logo.svg" alt="Privo" width="96" height="96" />
 </p>
 
