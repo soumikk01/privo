@@ -205,6 +205,7 @@ export interface DomElementMeta {
 	id?: string
 	ariaLabel?: string
 	placeholder?: string
+	value?: string
 	/** Text of the closest associated <label> */
 	labelText?: string
 	/** Text surrounding this element in the DOM */
@@ -258,6 +259,33 @@ export function scanDomElements(elements: DomElementMeta[]): DomSensitiveField[]
 					fieldType: el.inputType ?? el.tagName,
 					autocomplete: el.autocomplete,
 					label: el.labelText,
+					value: el.value,
+				}
+			}
+		}
+
+		// Also directly check value for high-confidence pattern match
+		if (!best && el.value && el.value.trim().length > 0) {
+			const val = el.value.trim()
+			if (/\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b/.test(val)) {
+				best = {
+					elementId: el.elementId,
+					category: 'EMAIL',
+					confidence: 0.95,
+					fieldType: el.inputType ?? el.tagName,
+					autocomplete: el.autocomplete,
+					label: el.labelText,
+					value: val,
+				}
+			} else if (/(?:\+91[\s\-]?)?[6-9]\d{9}\b/.test(val)) {
+				best = {
+					elementId: el.elementId,
+					category: 'PHONE',
+					confidence: 0.9,
+					fieldType: el.inputType ?? el.tagName,
+					autocomplete: el.autocomplete,
+					label: el.labelText,
+					value: val,
 				}
 			}
 		}
@@ -301,6 +329,7 @@ export function parseElementsFromDomText(domText: string): DomElementMeta[] {
 			id: getAttr('id'),
 			ariaLabel: getAttr('aria-label'),
 			placeholder: getAttr('placeholder'),
+			value: getAttr('value'),
 		})
 	}
 	return elements

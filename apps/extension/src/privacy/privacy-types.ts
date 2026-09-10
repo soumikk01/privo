@@ -85,6 +85,7 @@ export interface DomSensitiveField {
 	fieldType: string
 	autocomplete?: string
 	label?: string
+	value?: string
 }
 
 // ── Privacy status ────────────────────────────────────────────────────────────

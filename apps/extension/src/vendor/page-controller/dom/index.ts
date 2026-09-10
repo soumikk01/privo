@@ -369,7 +369,10 @@ export function flatTreeToString(
 
 					if (Object.keys(attributesToInclude).length > 0) {
 						attributesHtmlStr = Object.entries(attributesToInclude)
-							.map(([key, value]) => `${key}=${capTextLength(value, 20)}`)
+							.map(([key, value]) => {
+								const maxLen = (key === 'value' || key === 'placeholder' || key === 'aria-label') ? 200 : 40
+								return `${key}=${capTextLength(value, maxLen)}`
+							})
 							.join(' ')
 					}
 				}

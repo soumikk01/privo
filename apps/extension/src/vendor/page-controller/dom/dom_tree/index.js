@@ -1618,13 +1618,21 @@ export default (
 			}
 
 			/**
-			 * @edit @workaround input.checked
+			 * @edit @workaround input.checked and dynamic input values
 			 */
-			if (
-				node.tagName.toLowerCase() === 'input' &&
-				(node.type === 'checkbox' || node.type === 'radio')
-			) {
-				nodeData.attributes.checked = node.checked ? 'true' : 'false' // Store as string for consistency
+			const tag = node.tagName.toLowerCase()
+			if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+				if (tag === 'input' && (node.type === 'checkbox' || node.type === 'radio')) {
+					nodeData.attributes.checked = node.checked ? 'true' : 'false' // Store as string for consistency
+				} else if (tag === 'input' && node.type === 'password') {
+					nodeData.attributes.type = 'password'
+					nodeData.attributes.value = node.value ? '••••••••••••' : (node.getAttribute('placeholder') || '')
+				} else if (typeof node.value === 'string' && node.value) {
+					nodeData.attributes.value = node.value
+				}
+				if (tag === 'input' && node.type && !nodeData.attributes.type) {
+					nodeData.attributes.type = node.type
+				}
 			}
 		}
 

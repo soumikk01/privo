@@ -30,7 +30,8 @@ import { sanitizeUrl, sanitizeTitle } from './url-sanitizer'
 import { redactImage, detectedItemsToBoxes } from './image-redactor'
 import { buildRedactionReport } from './privacy-report'
 import { taskRegistry } from './placeholder-registry'
-import type { DetectedItem, PrivacyGatewayError, RawContext, SanitizedContext } from './privacy-types'
+import { uid } from '../vendor/core/utils'
+import type { DetectedItem, DomSensitiveField, PiiCategory, PrivacyGatewayError, RawContext, SanitizedContext } from './privacy-types'
 import { PrivacyGatewayError as GatewayError } from './privacy-types'
 
 import * as ocrWorker from './ocr-worker'
@@ -44,6 +45,8 @@ async function getOcrWorker() {
 // ── Last DOM hash (performance: skip re-scan if DOM unchanged) ────────────────
 
 let _lastDomHash = ''
+let _lastDomPiiHints: Array<{ category: PiiCategory; contextBoost: number }> = []
+let _lastDomSensitiveFields: DomSensitiveField[] = []
 
 function quickHash(s: string): string {
 	// djb2 — fast, not cryptographic, used only for change detection
@@ -78,18 +81,57 @@ export async function prepareModelContext(
 
 		// ── 1. DOM scan — get field classifications and PII hints ──────────────
 
-		let domPiiHints: Array<{ category: import('./privacy-types').PiiCategory; contextBoost: number }> = []
+		let domPiiHints: Array<{ category: PiiCategory; contextBoost: number }> = []
+		let domSensitiveFields: DomSensitiveField[] = []
 
 		try {
 			const domHash = quickHash(raw.domContent)
 			if (domHash !== _lastDomHash) {
 				_lastDomHash = domHash
-				const { piiHints } = scanDomContent(raw.domContent)
-				domPiiHints = piiHints
+				const { sensitiveFields, piiHints } = scanDomContent(raw.domContent)
+				_lastDomPiiHints = piiHints
+				_lastDomSensitiveFields = sensitiveFields
 			}
+			domPiiHints = _lastDomPiiHints
+			domSensitiveFields = _lastDomSensitiveFields
 		} catch (err) {
 			blockedReasons.push(`DOM scan failed: ${err instanceof Error ? err.message : String(err)}`)
 			throw new GatewayError(blockedReasons)
+		}
+
+		// ── 1b. Register sensitive fields from DOM scanner into detected items ────
+		for (const field of domSensitiveFields) {
+			if (field.category === 'PASSWORD') {
+				const rawVal = field.value || '••••••••••••'
+				const placeholder = taskRegistry.allocate('PASSWORD', rawVal)
+				allDetectedItems.push({
+					id: uid(),
+					category: 'PASSWORD',
+					confidence: field.confidence,
+					source: 'dom',
+					placeholder,
+					rawValue: rawVal,
+				})
+				if (!sanitizedSources.includes('dom')) sanitizedSources.push('dom')
+			} else if (field.value && field.value.trim().length > 0) {
+				// If a sensitive field has a value, scan it directly
+				const fieldPii = detectPii(field.value, taskRegistry, 'dom', domPiiHints)
+				if (fieldPii.length > 0) {
+					allDetectedItems.push(...fieldPii)
+					if (!sanitizedSources.includes('dom')) sanitizedSources.push('dom')
+				} else if (field.confidence >= 0.75) {
+					const placeholder = taskRegistry.allocate(field.category, field.value)
+					allDetectedItems.push({
+						id: uid(),
+						category: field.category,
+						confidence: field.confidence,
+						source: 'dom',
+						placeholder,
+						rawValue: field.value,
+					})
+					if (!sanitizedSources.includes('dom')) sanitizedSources.push('dom')
+				}
+			}
 		}
 
 		// ── 2. PII + secret detection across ALL text sources ─────────────────
@@ -274,4 +316,6 @@ export async function prepareModelContext(
 export function clearPrivacySession(): void {
 	taskRegistry.clear()
 	_lastDomHash = ''
+	_lastDomPiiHints = []
+	_lastDomSensitiveFields = []
 }

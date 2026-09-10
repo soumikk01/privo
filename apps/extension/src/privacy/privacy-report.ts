@@ -14,8 +14,16 @@ export function buildRedactionReport(params: {
 }): RedactionReport {
 	const { allDetectedItems, sanitizedSources, blockedReasons, scanStartMs } = params
 
-	// Strip rawValue from every item before building the public report
-	const publicItems: PublicDetectedItem[] = allDetectedItems.map(toPublicDetectedItem)
+	// Strip rawValue from every item and deduplicate by category + placeholder
+	const seen = new Set<string>()
+	const publicItems: PublicDetectedItem[] = []
+	for (const item of allDetectedItems) {
+		const key = `${item.category}:${item.placeholder}`
+		if (!seen.has(key)) {
+			seen.add(key)
+			publicItems.push(toPublicDetectedItem(item))
+		}
+	}
 
 	// Unique categories that were found (and thus redacted if above threshold)
 	const redactedCategories = [...new Set<PiiCategory>(

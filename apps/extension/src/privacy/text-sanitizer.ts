@@ -41,6 +41,14 @@ export function sanitizeText(text: string, detectedItems: DetectedItem[]): strin
 		result = result.slice(0, start) + placeholder + result.slice(end)
 	}
 
+	// Also replace any items that lacked char offsets (e.g. from DOM scanner)
+	const unpositioned = detectedItems.filter(
+		(item) => typeof item.start !== 'number' || typeof item.end !== 'number'
+	)
+	if (unpositioned.length > 0) {
+		result = sanitizeTextByValue(result, unpositioned)
+	}
+
 	return result
 }
 

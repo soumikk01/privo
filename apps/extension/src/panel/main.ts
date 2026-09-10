@@ -84,6 +84,13 @@ const privacyStatusBadgeEl = $('privacy-status-badge')
 const privacyDetectedListEl = $('privacy-detected-list')
 const privacyPreviewBodyEl = $('privacy-preview-body')
 
+const BADGE_ICONS = {
+	lock: '<svg class="privacy-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2.5" ry="2.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16.5" r="1.2" fill="currentColor"/></svg>',
+	shieldCheck: '<svg class="privacy-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+	scan: '<svg class="privacy-badge-icon privacy-badge-icon--spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>',
+	blocked: '<svg class="privacy-badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+}
+
 // ---------- sidebar + drawer element refs ----------
 
 const sidebarRecentBtn = $<HTMLButtonElement>('sidebar-recent')
@@ -1079,7 +1086,7 @@ function askUser(question: string, options?: { signal: AbortSignal }): Promise<s
 					agentfillPassEl.placeholder = 'Enter OTP or verification code'
 					agentfillPassEl.type = 'text'
 					agentfillPassEl.value = ''
-					agentfillDetectedBadgeEl.textContent = '🔒 Enter OTP / verification code sent to you'
+					agentfillDetectedBadgeEl.innerHTML = `${BADGE_ICONS.lock}<span>Enter OTP / verification code sent to you</span>`
 					agentfillDetectedBadgeEl.classList.remove('hidden')
 					agentfillSubmitBtn.textContent = 'Submit OTP'
 					loginAgentfillViewEl.classList.remove('hidden')
@@ -1642,15 +1649,15 @@ function renderPrivacyPanel(report: RedactionReport, status: PrivacyStatus): voi
 		REDACTED: 'privacy-badge--redacted',
 		BLOCKED: 'privacy-badge--blocked',
 	}
-	const badgeLabel: Record<PrivacyStatus, string> = {
-		SCANNING: '🔍 Scanning…',
-		NO_SENSITIVE_DATA: '✓ No sensitive data detected',
-		REDACTED: `🔒 Sanitized · ${report.detectedItems.length} item${report.detectedItems.length !== 1 ? 's' : ''}`,
-		BLOCKED: '⛔ Blocked — see details',
+	const badgeContent: Record<PrivacyStatus, string> = {
+		SCANNING: `${BADGE_ICONS.scan}<span>Scanning…</span>`,
+		NO_SENSITIVE_DATA: `${BADGE_ICONS.shieldCheck}<span>No sensitive data detected</span>`,
+		REDACTED: `${BADGE_ICONS.lock}<span>Sanitized · ${report.detectedItems.length} item${report.detectedItems.length !== 1 ? 's' : ''}</span>`,
+		BLOCKED: `${BADGE_ICONS.blocked}<span>Blocked — see details</span>`,
 	}
 
 	privacyStatusBadgeEl.className = `privacy-badge ${badgeClass[status]}`
-	privacyStatusBadgeEl.textContent = badgeLabel[status]
+	privacyStatusBadgeEl.innerHTML = badgeContent[status]
 
 	// Render detected category pills — no raw values, only placeholders
 	privacyDetectedListEl.replaceChildren()
@@ -1703,7 +1710,7 @@ function showPrivacyBlocked(reason: string): void {
 	if (!privacySectionEl) return
 	privacySectionEl.classList.remove('hidden')
 	privacyStatusBadgeEl.className = 'privacy-badge privacy-badge--blocked'
-	privacyStatusBadgeEl.textContent = '⛔ Blocked — see details'
+	privacyStatusBadgeEl.innerHTML = `${BADGE_ICONS.blocked}<span>Blocked — see details</span>`
 	privacyDetectedListEl.replaceChildren()
 	privacyPreviewBodyEl.innerHTML = `<div class="privacy-blocked-reason">Privacy scan blocked: ${reason}</div>`
 }
@@ -1712,7 +1719,7 @@ function clearPrivacyPanel(): void {
 	if (!privacySectionEl) return
 	privacySectionEl.classList.add('hidden')
 	privacyStatusBadgeEl.className = 'privacy-badge privacy-badge--scanning'
-	privacyStatusBadgeEl.textContent = '🔍 Scanning…'
+	privacyStatusBadgeEl.innerHTML = `${BADGE_ICONS.scan}<span>Scanning…</span>`
 	privacyDetectedListEl.replaceChildren()
 	privacyPreviewBodyEl.textContent = ''
 }
