@@ -27,6 +27,18 @@ const askQEl = $('askuser-q')
 const askOptionsEl = $('askuser-options')
 const askAEl = $<HTMLInputElement>('askuser-a')
 
+// Login gate elements
+const askStandardEl = $('ask-standard')
+const askLoginEl = $('ask-login')
+const loginGateMsgEl = $('login-gate-msg')
+const loginOptionsEl = $('login-options')
+const loginSigninBtn = $<HTMLButtonElement>('login-signin-btn')
+const loginSkipBtn = $<HTMLButtonElement>('login-skip-btn')
+const loginInputZoneEl = $('login-input-zone')
+const loginFieldAEl = $<HTMLInputElement>('login-field-a')
+const loginFieldSendEl = $<HTMLButtonElement>('login-field-send')
+const sorryBodyEl = $('sorry-body')
+
 const resultEl = $('result')
 const resultTitleEl = $('result-title')
 const resultBodyEl = $('result-body')
@@ -45,12 +57,14 @@ const backendDot = $('backend-dot')
 
 // ---------- the stage: one card at a time ----------
 
-type Stage = 'composer' | 'now' | 'ask' | 'result'
+type Stage = 'composer' | 'now' | 'ask' | 'result' | 'login-sorry'
+const loginSorryEl = $('login-sorry')
 const STAGE_ELS: Record<Stage, HTMLElement> = {
 	composer: composerEl,
 	now: nowEl,
 	ask: askEl,
 	result: resultEl,
+	'login-sorry': loginSorryEl,
 }
 
 function showStage(stage: Stage) {
@@ -229,38 +243,57 @@ SCOPE:
 let askResolve: ((answer: string) => void) | null = null
 
 // ---------- Option chip parser ----------
-// Extracts quick-reply choices from the agent's question text.
-// Handles four common formats:
-//   (e.g., A, B, C)        → [A, B, C]
-//   1. A\n2. B\n3. C       → [A, B, C]
-//   - A\n- B\n- C          → [A, B, C]
-//   "choose A, B, or C"    → [A, B, C]
+// Multi-pass extractor — tries formats from most to least specific.
+// Pass 1: any parenthesised comma list: (PS5, Xbox, PC, etc.)
+//         also (e.g., Google, Facebook, email)
+// Pass 2: numbered list  1. A  2. B  3. C
+// Pass 3: bullet list    - A  - B  - C
+// Pass 4: "for example, A, B or C" inline
+// Pass 5: broad  "A, B, or C" anywhere in sentence
+
+const SKIP_WORDS = /^(e\.?g\.?|etc\.?|and|or|the|a|an|any|other|details?|more|full|title|platform|name)$/i
 
 function parseOptions(question: string): string[] {
-	// 1. Parenthesised e.g. list: (e.g., A, B, C, etc.)
-	const egMatch = question.match(/\(e\.?g\.?,?\s*([^)]+)\)/i)
-	if (egMatch) {
-		return egMatch[1]
+	// Pass 1 — ALL parenthesised lists (greedy: pick the one with most items)
+	let bestFromParens: string[] = []
+	for (const m of question.matchAll(/\(([^)]{2,120})\)/g)) {
+		const items = m[1]
 			.split(/,|;/)
+			.map(s => s.trim().replace(/^e\.?g\.?,?\s*/i, ''))
+			.filter(s => s && !SKIP_WORDS.test(s) && s.length >= 2 && s.length < 55)
+		if (items.length >= 2 && items.length > bestFromParens.length) {
+			bestFromParens = items
+		}
+	}
+	if (bestFromParens.length >= 2) return bestFromParens
+
+	// Pass 2 — Numbered list: "1. A\n2. B"
+	const numbered = [...question.matchAll(/^\s*\d+[.)]\s*(.+)$/gm)]
+		.map(m => m[1].trim()).filter(s => s.length >= 2 && s.length < 60)
+	if (numbered.length >= 2) return numbered
+
+	// Pass 3 — Bullet list: "- A\n- B" or "• A"
+	const bullets = [...question.matchAll(/^[-•*]\s+(.+)$/gm)]
+		.map(m => m[1].trim()).filter(s => s.length >= 2 && s.length < 60)
+	if (bullets.length >= 2) return bullets
+
+	// Pass 4 — "for example, A, B, or C" / "such as A, B, C"
+	const egInline = question.match(
+		/(?:for\s+example|such\s+as|like|including)[,:]?\s+([^.?!()]{4,120})/i
+	)
+	if (egInline) {
+		const items = egInline[1].split(/,|\bor\b/i)
 			.map(s => s.trim())
-			.filter(s => s && !/^etc\.?$/i.test(s) && s.length < 60)
+			.filter(s => s && !SKIP_WORDS.test(s) && s.length >= 2 && s.length < 55)
+		if (items.length >= 2) return items
 	}
 
-	// 2. Numbered list: "1. A\n2. B"
-	const numbered = [...question.matchAll(/^\d+[.)\s]+(.+)$/gm)].map(m => m[1].trim())
-	if (numbered.length >= 2) return numbered.filter(s => s.length < 60)
-
-	// 3. Bullet list: "- A\n- B" or "• A"
-	const bullets = [...question.matchAll(/^[-•*]\s+(.+)$/gm)].map(m => m[1].trim())
-	if (bullets.length >= 2) return bullets.filter(s => s.length < 60)
-
-	// 4. Inline "A, B, or C" near the end of a sentence
-	const orMatch = question.match(/(?:choose|pick|select|between|options?:?)\s+([^.?!]+(?:,\s*or\s+[^.?!]+))/i)
-	if (orMatch) {
-		return orMatch[1]
-			.split(/,|\bor\b/i)
+	// Pass 5 — broad "A, B, or C" anywhere (last resort)
+	const orSentence = question.match(/\b(\w[\w\s-]{1,30}),\s+(\w[\w\s-]{1,30}),?\s+or\s+(\w[\w\s-]{1,30})\b/)
+	if (orSentence) {
+		return [orSentence[1], orSentence[2], orSentence[3]]
 			.map(s => s.trim())
-			.filter(s => s && s.length < 60)
+			.filter(s => s && !SKIP_WORDS.test(s) && s.length >= 2)
 	}
 
 	return []
@@ -286,10 +319,158 @@ function renderOptions(options: string[]) {
 	})
 }
 
-function askUser(question: string, options?: { signal: AbortSignal }): Promise<string> {
-	askQEl.innerHTML = renderMarkdown(question)
+// ---------- Login flow detection ----------
 
-	// Extract and render option chips from the question text
+/** True when the agent is asking about logging in / credentials */
+const LOGIN_Q_RE = /\b(sign[\s-]?in|log[\s-]?in|log\s+in|login|authenticate|credentials?|password\s+field|account\s+required|need\s+to\s+(sign|log)|click\s+(sign|log)|complete\s+the\s+login|please\s+(sign|log))\b/i
+
+/** True when the agent says it can't proceed without logging in */
+const BLOCKED_RE = /\b(can'?t|cannot|unable|blocked|access\s+denied|requires?\s+(a\s+)?login|must\s+(sign|log)\s+in|only\s+available\s+(to\s+)?logged?\s*in|please\s+(sign|log)\s+in\s+first|not\s+accessible\s+without)\b/i
+
+function isLoginQuestion(q: string) { return LOGIN_Q_RE.test(q) }
+function isBlockedByLogin(q: string) { return BLOCKED_RE.test(q) }
+
+// Track whether the user previously chose "Not now" so we can show the sorry
+// screen if the agent comes back saying it's blocked.
+let _skippedLogin = false
+// Store the last login question so "Sign In & Continue" can re-use it
+let _lastLoginQuestion = ''
+
+/** Switch between standard ask UI and login gate UI */
+function showAskMode(mode: 'standard' | 'login') {
+	askStandardEl.classList.toggle('hidden', mode !== 'standard')
+	askLoginEl.classList.toggle('hidden', mode !== 'login')
+}
+
+/** Render login method chips inside the login options area */
+function renderLoginMethodChips(methods: string[]) {
+	loginOptionsEl.replaceChildren()
+	// Always offer "Use browser autofill" first
+	const autofillChip = document.createElement('button')
+	autofillChip.className = 'ask-chip'
+	autofillChip.textContent = 'Browser autofill'
+	autofillChip.style.animationDelay = '0ms'
+	autofillChip.addEventListener('click', () => {
+		autofillChip.classList.add('selected')
+		setTimeout(() => askResolve?.('Use browser autofill to fill in the credentials, then submit'), 160)
+	})
+	loginOptionsEl.appendChild(autofillChip)
+
+	// Add any methods detected from the question
+	methods.forEach((m, i) => {
+		const chip = document.createElement('button')
+		chip.className = 'ask-chip'
+		chip.textContent = m
+		chip.style.animationDelay = `${(i + 1) * 55}ms`
+		chip.addEventListener('click', () => {
+			document.querySelectorAll('#login-options .ask-chip').forEach(c => c.classList.remove('selected'))
+			chip.classList.add('selected')
+			setTimeout(() => askResolve?.(`Sign in using ${m}`), 160)
+		})
+		loginOptionsEl.appendChild(chip)
+	})
+
+	// Show the chips container
+	loginOptionsEl.classList.remove('login-options-hidden')
+	loginOptionsEl.classList.add('login-options-visible', 'ask-options')
+}
+
+/** Extract sign-in method names from the agent question */
+function parseLoginMethods(q: string): string[] {
+	// Try e.g. list
+	const egMatch = q.match(/\(e\.?g\.?,?\s*([^)]+)\)/i)
+	if (egMatch) {
+		return egMatch[1].split(/,|;/).map(s => s.trim())
+			.filter(s => s && !/^etc\.?$/i.test(s) && s.length < 50)
+	}
+	// Try "with Google, Facebook, or email" patterns
+	const withMatch = q.match(/(?:with|using|via)\s+([\w\s,]+(?:,?\s*or\s+[\w\s]+)?)/i)
+	if (withMatch) {
+		return withMatch[1].split(/,|\bor\b/i).map(s => s.trim())
+			.filter(s => s && s.length < 40)
+	}
+	return []
+}
+
+/** Show the sorry / blocked screen */
+function showSorryScreen(customMsg?: string) {
+	if (customMsg) sorryBodyEl.textContent = customMsg
+	showStage('login-sorry')
+}
+
+function askUser(question: string, options?: { signal: AbortSignal }): Promise<string> {
+	// ── Blocked case: agent came back saying it can't proceed without login ──
+	if (_skippedLogin && isBlockedByLogin(question)) {
+		showSorryScreen()
+		setStatus('waiting')
+		return new Promise<string>((resolve, reject) => {
+			askResolve = (answer: string) => {
+				askResolve = null
+				_skippedLogin = false
+				showStage('now')
+				setNowAction('Continuing…', 'swap')
+				setStatus('running')
+				resolve(answer)
+			}
+			options?.signal.addEventListener('abort', () => {
+				askResolve = null
+				reject(new DOMException('Task stopped', 'AbortError'))
+			})
+		})
+	}
+
+	// ── Login gate case: agent is asking user to sign in ──
+	if (isLoginQuestion(question)) {
+		_lastLoginQuestion = question
+		loginGateMsgEl.textContent = 'This page requires login to continue. How would you like to proceed?'
+		// Reset chips — will be shown only after "Sign In" is clicked
+		loginOptionsEl.replaceChildren()
+		loginOptionsEl.classList.remove('login-options-visible')
+		loginOptionsEl.classList.add('login-options-hidden')
+		loginInputZoneEl.classList.add('hidden')
+		loginSigninBtn.textContent = 'Sign In'
+		loginSigninBtn.disabled = false
+
+		showAskMode('login')
+		showStage('ask')
+		setStatus('waiting')
+
+		return new Promise<string>((resolve, reject) => {
+			askResolve = (answer: string) => {
+				askResolve = null
+				showStage('now')
+				setNowAction('Continuing…', 'swap')
+				setStatus('running')
+				resolve(answer)
+			}
+
+			// Sign In button → reveal method chips
+			loginSigninBtn.onclick = () => {
+				_skippedLogin = false
+				loginSigninBtn.textContent = 'Signing in…'
+				loginSigninBtn.disabled = true
+				const methods = parseLoginMethods(question)
+				renderLoginMethodChips(methods)
+				// Hide the Sign In / Not Now buttons row, show chips
+				loginSigninBtn.closest('.login-gate-btns')!.classList.add('hidden')
+			}
+
+			// Not now → try without login
+			loginSkipBtn.onclick = () => {
+				_skippedLogin = true
+				askResolve?.('No, proceed without login and try to access the page anyway')
+			}
+
+			options?.signal.addEventListener('abort', () => {
+				askResolve = null
+				reject(new DOMException('Task stopped', 'AbortError'))
+			})
+		})
+	}
+
+	// ── Standard ask: render question + option chips + text input ──
+	showAskMode('standard')
+	askQEl.innerHTML = renderMarkdown(question)
 	renderOptions(parseOptions(question))
 
 	showStage('ask')
@@ -316,6 +497,36 @@ $('askuser-done').addEventListener('click', () => askResolve?.('done'))
 askAEl.addEventListener('keydown', (e) => {
 	if (e.key === 'Enter') askResolve?.(askAEl.value)
 })
+loginFieldSendEl.addEventListener('click', () => askResolve?.(loginFieldAEl.value))
+loginFieldAEl.addEventListener('keydown', (e) => {
+	if (e.key === 'Enter') askResolve?.(loginFieldAEl.value)
+})
+
+// Sorry screen buttons
+$('sorry-signin').addEventListener('click', () => {
+	// Re-open the login gate for the last login question
+	showAskMode('login')
+	showStage('ask')
+	loginSigninBtn.textContent = 'Sign In'
+	loginSigninBtn.disabled = false
+	loginSigninBtn.closest('.login-gate-btns')?.classList.remove('hidden')
+	loginOptionsEl.replaceChildren()
+	loginOptionsEl.classList.remove('login-options-visible')
+	loginOptionsEl.classList.add('login-options-hidden')
+	_skippedLogin = false
+
+	loginSigninBtn.onclick = () => {
+		loginSigninBtn.textContent = 'Signing in…'
+		loginSigninBtn.disabled = true
+		renderLoginMethodChips(parseLoginMethods(_lastLoginQuestion))
+		loginSigninBtn.closest('.login-gate-btns')!.classList.add('hidden')
+	}
+	loginSkipBtn.onclick = () => {
+		_skippedLogin = true
+		askResolve?.('No, proceed without login and try to access the page anyway')
+	}
+})
+$('sorry-newtask').addEventListener('click', () => void resetToComposer())
 
 // ---------- run / stop / restart ----------
 
@@ -344,6 +555,11 @@ async function runTask() {
 	agent.addEventListener('activity', (e) => onActivity((e as CustomEvent<AgentActivity>).detail))
 
 	runningTaskEl.textContent = task
+
+	// Reset login flow state for fresh task
+	_skippedLogin = false
+	_lastLoginQuestion = ''
+	showAskMode('standard')
 
 	// Always start in question mode (quiet shimmer).
 	// onActivity will automatically upgrade to task mode if the agent

@@ -66,13 +66,53 @@
 		<!-- 3 · paused: the agent needs you -->
 		<section id="askuser" class="card ask hidden">
 			<p class="ask-label">Your turn — the agent is waiting</p>
-			<p id="askuser-q" class="ask-q"></p>
-			<div id="askuser-options" class="ask-options"></div>
-			<div class="ask-row">
-				<input id="askuser-a" type="text" placeholder="Or type a custom answer…" autocomplete="off" />
-				<button id="askuser-send" class="btn btn-primary">Send</button>
+
+			<!-- 3a · standard mode: question + optional chips + text input -->
+			<div id="ask-standard">
+				<p id="askuser-q" class="ask-q"></p>
+				<div id="askuser-options" class="ask-options"></div>
+				<div class="ask-row">
+					<input id="askuser-a" type="text" placeholder="Or type a custom answer…" autocomplete="off" />
+					<button id="askuser-send" class="btn btn-primary">Send</button>
+				</div>
+				<button id="askuser-done" class="btn btn-secondary ask-done">Done</button>
 			</div>
-			<button id="askuser-done" class="btn btn-secondary ask-done">Done</button>
+
+			<!-- 3b · login gate mode: sign in or skip -->
+			<div id="ask-login" class="hidden">
+				<div class="login-gate-header">
+					<span class="login-gate-icon">🔐</span>
+					<div>
+						<p class="login-gate-title">Login Required</p>
+						<p id="login-gate-msg" class="login-gate-msg"></p>
+					</div>
+				</div>
+				<!-- Login method chips (Google, Facebook, Email, autofill…) -->
+				<div id="login-options" class="ask-options login-options-hidden"></div>
+				<!-- Primary actions -->
+				<div class="login-gate-btns">
+					<button id="login-signin-btn" class="btn btn-primary login-signin-btn">Sign In</button>
+					<button id="login-skip-btn" class="btn btn-ghost login-skip-btn">Not now →</button>
+				</div>
+				<!-- Credential input zone (password / OTP / 2FA) — shown by agent -->
+				<div id="login-input-zone" class="login-input-zone hidden">
+					<input id="login-field-a" type="text" placeholder="Type here…" autocomplete="off" />
+					<button id="login-field-send" class="btn btn-primary">Send</button>
+				</div>
+			</div>
+		</section>
+
+		<!-- 3c · login blocked: sorry screen -->
+		<section id="login-sorry" class="card login-sorry hidden">
+			<div class="sorry-inner">
+				<span class="sorry-icon">🚫</span>
+				<p class="sorry-title">Can't continue without login</p>
+				<p id="sorry-body" class="sorry-body">Without signing in, the agent can't access this page's content. You can sign in and let the agent retry, or start a new task.</p>
+			</div>
+			<div class="sorry-actions">
+				<button id="sorry-signin" class="btn btn-primary">Sign In &amp; Continue</button>
+				<button id="sorry-newtask" class="btn btn-secondary">New Task</button>
+			</div>
 		</section>
 
 		<!-- 4 · finished: the outcome -->

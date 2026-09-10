@@ -344,6 +344,76 @@ kbd {
 @keyframes askGlow { 50% { box-shadow: 0 0 0 4px var(--warn-soft); } }
 @media (prefers-reduced-motion: reduce) { .ask.pulse { animation: none; } .ask-chip { animation: none; } }
 
+/* ── Login gate (inside .ask card) ── */
+.login-gate-header {
+	display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px;
+}
+.login-gate-icon {
+	font-size: 22px; flex: none; line-height: 1.2;
+}
+.login-gate-title {
+	margin: 0 0 2px; font-size: 13px; font-weight: 700; color: var(--ink);
+}
+.login-gate-msg {
+	margin: 0; font-size: 12px; color: var(--ink-2);
+}
+
+/* Method chips use accent blue instead of warn */
+.login-options-hidden { display: none; }
+.login-options-visible { display: flex; }
+#login-options .ask-chip {
+	border-color: var(--accent); color: var(--accent);
+	animation: chip-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+#login-options .ask-chip:hover,
+#login-options .ask-chip.selected {
+	background: var(--accent); color: var(--accent-ink);
+}
+
+.login-gate-btns {
+	display: flex; gap: 8px; align-items: center; margin-top: 4px;
+}
+.login-signin-btn {
+	flex: 1;
+	font-size: 13px; font-weight: 700;
+	padding: 10px 16px;
+	letter-spacing: 0.01em;
+}
+.login-skip-btn {
+	color: var(--ink-3); font-size: 12px;
+	padding: 6px 10px;
+}
+.login-skip-btn:hover { color: var(--ink); }
+
+.login-input-zone {
+	display: flex; gap: 8px; margin-top: 10px;
+	border-top: 1px solid var(--line); padding-top: 10px;
+}
+.login-input-zone input {
+	flex: 1; min-width: 0;
+	padding: 8px 10px;
+	border: 1px solid var(--line-strong); border-radius: 8px;
+	background: var(--surface); color: var(--ink); font: inherit;
+}
+
+/* ── Sorry screen (separate card) ── */
+.login-sorry {
+	padding: 16px 14px;
+	border: 1.5px solid var(--bad);
+	display: flex; flex-direction: column; gap: 12px;
+	animation: askIn 0.35s ease-out;
+}
+.sorry-inner { display: flex; flex-direction: column; gap: 4px; }
+.sorry-icon { font-size: 26px; display: block; margin-bottom: 4px; }
+.sorry-title {
+	margin: 0; font-size: 14px; font-weight: 700; color: var(--bad);
+}
+.sorry-body {
+	margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.55;
+}
+.sorry-actions { display: flex; flex-direction: column; gap: 7px; }
+.sorry-actions .btn { width: 100%; justify-content: center; }
+
 /* result */
 .result { padding: 12px 14px; border: 1.5px solid var(--good); display: flex; flex-direction: column; gap: 6px; }
 .result.is-fail { border-color: var(--bad); }
