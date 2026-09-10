@@ -159,7 +159,7 @@ kbd {
 	color: #fff;
 	cursor: pointer;
 	display: grid; place-items: center;
-	overflow: visible;
+	overflow: hidden;
 	transition: background 0.28s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s, transform 0.15s;
 	box-shadow: 0 2px 8px rgba(23, 95, 255, 0.32);
 	flex-shrink: 0;
@@ -178,7 +178,7 @@ kbd {
 
 .run-btn-inner {
 	position: relative;
-	width: 20px; height: 20px;
+	width: 22px; height: 22px;
 	display: grid; place-items: center;
 	overflow: hidden;
 	border-radius: 50%;
@@ -192,19 +192,41 @@ kbd {
 	opacity: 1;
 	transition: opacity 0.2s cubic-bezier(0.4, 0, 1, 1), transform 0.26s cubic-bezier(0.4, 0, 1, 1);
 }
-/* Stop square — hidden by default */
+/* Stop square — larger, minimalist */
 .icon-stop {
 	position: absolute;
-	width: 13px; height: 13px;
+	width: 20px; height: 20px;
 	opacity: 0;
-	transform: scale(0.2) rotate(25deg);
-	transition: opacity 0.2s cubic-bezier(0, 0, 0.2, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+	display: block;
+	transition: opacity 0.15s ease;
+	pointer-events: none;
 }
 
-/* ── Running state ── */
+/* Track path: subtle background silhouette */
+.stop-line-track {
+	fill: transparent;
+	stroke: rgba(255, 255, 255, 0.28);
+	stroke-width: 2.4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+/* Foreground path: line-by-line drawing animation */
+.stop-line-square {
+	fill: transparent;
+	stroke: #fff;
+	stroke-width: 2.4;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	stroke-dasharray: 100;
+	stroke-dashoffset: 100;
+}
+
+/* ── Running state (minimalist: wave effect removed) ── */
 .run-btn.running {
 	background: var(--bad);
-	box-shadow: 0 2px 12px rgba(217, 48, 37, 0.42);
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+	overflow: hidden;
 }
 .run-btn.running .icon-arrow {
 	opacity: 0;
@@ -212,50 +234,82 @@ kbd {
 }
 .run-btn.running .icon-stop {
 	opacity: 1;
-	transform: scale(1) rotate(0deg);
+}
+.run-btn.running .stop-line-square {
+	animation: draw-square-lines 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Hover: hold solid white for crisp stop feedback */
+.run-btn.running:hover .stop-line-square {
+	animation-play-state: paused;
+	stroke-dashoffset: 0;
+	fill: #fff;
+}
+
+/* Slowly looping line-by-line square creation animation */
+@keyframes draw-square-lines {
+	0% {
+		stroke-dashoffset: 100;
+		fill: rgba(255, 255, 255, 0);
+	}
+	10% {
+		stroke-dashoffset: 75;  /* Line 1: Top drawn */
+		fill: rgba(255, 255, 255, 0);
+	}
+	20% {
+		stroke-dashoffset: 50;  /* Line 2: Right drawn */
+		fill: rgba(255, 255, 255, 0);
+	}
+	30% {
+		stroke-dashoffset: 25;  /* Line 3: Bottom drawn */
+		fill: rgba(255, 255, 255, 0);
+	}
+	40% {
+		stroke-dashoffset: 0;   /* Line 4: Left drawn, closing square */
+		fill: rgba(255, 255, 255, 0);
+	}
+	48% {
+		stroke-dashoffset: 0;
+		fill: rgba(255, 255, 255, 1); /* Snaps into solid white */
+	}
+	72% {
+		stroke-dashoffset: 0;
+		fill: rgba(255, 255, 255, 1); /* Holds solid white stop square */
+	}
+	82% {
+		stroke-dashoffset: 0;
+		fill: rgba(255, 255, 255, 0); /* Fill gently fades */
+	}
+	95% {
+		stroke-dashoffset: -100;
+		fill: rgba(255, 255, 255, 0); /* Line gracefully exits */
+	}
+	100% {
+		stroke-dashoffset: 100;
+		fill: rgba(255, 255, 255, 0); /* Smoothly cycles to start */
+	}
 }
 
 /* Burst on launch: cool tactile expansion */
 .run-btn.launching {
-	animation: btn-burst 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+	animation: btn-burst 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes btn-burst {
 	0%   { transform: scale(1); }
-	40%  { transform: scale(1.15); }
+	40%  { transform: scale(1.1); }
 	100% { transform: scale(1); }
-}
-
-/* Pulsing ring when running */
-.run-btn.running::after {
-	content: '';
-	position: absolute;
-	inset: -3px;
-	border-radius: 50%;
-	border: 2px solid var(--bad);
-	opacity: 0.7;
-	animation: run-ring 1.5s ease-out infinite;
-	pointer-events: none;
-}
-@keyframes run-ring {
-	0%   { transform: scale(0.95); opacity: 0.8; }
-	60%  { transform: scale(1.4);  opacity: 0; }
-	100% { transform: scale(1.4);  opacity: 0; }
 }
 
 /* Stopping state: user clicked stop */
 .run-btn.stopping {
-	opacity: 0.65;
+	opacity: 0.6;
 	pointer-events: none;
-	animation: stop-spin 0.8s linear infinite;
-}
-@keyframes stop-spin {
-	0%   { transform: scale(0.95) rotate(0deg); }
-	100% { transform: scale(0.95) rotate(360deg); }
+	transform: scale(0.92);
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.run-btn, .run-btn-inner, .icon-arrow, .icon-stop,
-	.run-btn.running::after, .run-btn.launching, .run-btn.stopping { animation: none; transition: none; }
+	.stop-line-square, .run-btn.launching, .run-btn.stopping { animation: none; transition: none; }
 }
 
 /* running / now */
