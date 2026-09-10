@@ -1,5 +1,6 @@
 import { type AgentConfig, PageAgentCore } from '@page-agent/core'
 
+import { createPrivacyTransformHook } from '../privacy/pipeline'
 import { RemotePageController } from './RemotePageController'
 import { TabsController } from './TabsController'
 import SYSTEM_PROMPT from './system_prompt.md?raw'
@@ -40,6 +41,7 @@ export class MultiPageAgent extends PageAgentCore {
 			// Disabled: AbortSignal cannot cross contexts
 			experimentalScriptExecutionTool: false,
 			pageController: pageController as any,
+			transformPageContent: config.transformPageContent ?? createPrivacyTransformHook({ enabled: true }),
 			// [PRIVO] modified: merge caller-provided customTools (e.g. capture_screenshot)
 			// instead of overwriting them with the tab tools.
 			customTools: { ...customTools, ...config.customTools },
