@@ -205,17 +205,74 @@
 						<span class="login-gate-icon">🔐</span>
 						<div>
 							<p class="login-gate-title">Login Required</p>
-							<p id="login-gate-msg" class="login-gate-msg"></p>
+							<p id="login-gate-msg" class="login-gate-msg">This page requires login to continue. Choose how to proceed:</p>
 						</div>
 					</div>
-					<!-- Login method chips (Google, Facebook, Email, autofill…) -->
-					<div id="login-options" class="ask-options login-options-hidden"></div>
-					<!-- Primary actions -->
-					<div class="login-gate-btns">
-						<button id="login-signin-btn" class="btn btn-primary login-signin-btn">Sign In</button>
-						<button id="login-skip-btn" class="btn btn-ghost login-skip-btn">Not now →</button>
+
+					<!-- The 3 Login Action Options (Minimalistic Chips) -->
+					<div id="login-action-choices" class="ask-options" style="margin: 8px 0 10px;">
+						<button id="login-choice-autofill" class="ask-chip" type="button">Browser autofill</button>
+						<button id="login-choice-manual" class="ask-chip" type="button">Manual login</button>
+						<button id="login-choice-agentfill" class="ask-chip" type="button">Agent fill</button>
 					</div>
-					<!-- Credential input zone (password / OTP / 2FA) — shown by agent -->
+
+					<!-- Sub-view: Manual Login Active Mode -->
+					<div id="login-manual-view" class="login-subview hidden">
+						<div class="manual-notice">
+							<span class="manual-pulse-dot"></span>
+							<div>
+								<p class="manual-notice-title">Agent screen access paused</p>
+								<p class="manual-notice-desc">Please enter your credentials, OTP, or verification code directly on the webpage. The AI cannot see your typing.</p>
+							</div>
+						</div>
+						<div class="manual-timer-bar">
+							<span id="manual-idle-status">Waiting for your input…</span>
+							<span id="manual-countdown" class="manual-countdown-badge">Auto-resumes in 45s</span>
+						</div>
+						<div class="login-subview-actions">
+							<button id="login-manual-done-btn" class="btn btn-primary" style="flex:1;">✓ I'm logged in — Resume Agent</button>
+							<button id="login-manual-cancel-btn" class="btn btn-ghost" type="button">Back</button>
+						</div>
+					</div>
+
+					<!-- Sub-view: Agent Fill Credential Form -->
+					<div id="login-agentfill-view" class="login-subview hidden">
+						<p class="agentfill-instructions">Enter credentials for <strong id="agentfill-domain">this site</strong>. Stored locally in IndexedDB.</p>
+						<div id="agentfill-detected-badge" class="agentfill-detected-badge hidden"></div>
+						<div class="agentfill-form">
+							<div id="agentfill-user-wrap">
+								<input id="agentfill-user" type="text" placeholder="Username or Email" autocomplete="off" />
+							</div>
+							<div id="agentfill-pass-wrap">
+								<input id="agentfill-pass" type="password" placeholder="Password" autocomplete="off" />
+							</div>
+							<div class="agentfill-save-row">
+								<label class="save-vault-label">
+									<input id="agentfill-remember" type="checkbox" checked />
+									Save in Privo local vault (IndexedDB)
+								</label>
+							</div>
+							<div class="login-subview-actions">
+								<button id="agentfill-submit-btn" class="btn btn-primary" style="flex:1;">Fill &amp; Login</button>
+								<button id="agentfill-cancel-btn" class="btn btn-ghost" type="button">Back</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- Legacy button container kept for compatibility -->
+					<div class="login-gate-btns hidden">
+						<button id="login-signin-btn" class="btn btn-primary login-signin-btn">Sign In</button>
+					</div>
+
+					<!-- Login method chips (Google, Facebook, etc. if detected) -->
+					<div id="login-options" class="ask-options login-options-hidden mt-2"></div>
+
+					<!-- Skip action -->
+					<div class="login-gate-footer">
+						<button id="login-skip-btn" class="btn btn-ghost login-skip-btn">Not now — proceed anyway →</button>
+					</div>
+
+					<!-- Credential input zone (shown for direct prompt replies) -->
 					<div id="login-input-zone" class="login-input-zone hidden">
 						<input id="login-field-a" type="text" placeholder="Type here…" autocomplete="off" />
 						<button id="login-field-send" class="btn btn-primary">Send</button>
@@ -254,7 +311,21 @@
 				<div class="feed-wrap"><div id="feed" class="feed" aria-live="polite"></div></div>
 			</section>
 
-			<!-- output -->
+			<!-- ── Privacy panel — "What Leaves My Device" ── -->
+			<section id="privacy-section" class="section hidden">
+				<div class="section-head privacy-section-head">
+					<div class="privacy-header-row">
+						<h2>Privacy</h2>
+						<span id="privacy-status-badge" class="privacy-badge privacy-badge--scanning">🔍 Scanning…</span>
+					</div>
+				</div>
+				<div id="privacy-detected-list" class="privacy-detected-list"></div>
+				<details class="privacy-preview" id="privacy-preview-details">
+					<summary class="privacy-preview-summary">What leaves this device</summary>
+					<div id="privacy-preview-body" class="privacy-preview-body"></div>
+				</details>
+			</section>
+
 			<section class="section">
 				<div class="section-head">
 					<h2>Sealed captures <span id="shots-count" class="count hidden"></span></h2>

@@ -39,6 +39,28 @@ const loginFieldAEl = $<HTMLInputElement>('login-field-a')
 const loginFieldSendEl = $<HTMLButtonElement>('login-field-send')
 const sorryBodyEl = $('sorry-body')
 
+// Multi-choice login gate elements
+const loginActionChoicesEl = $('login-action-choices')
+const loginChoiceAutofillBtn = $<HTMLButtonElement>('login-choice-autofill')
+const loginChoiceManualBtn = $<HTMLButtonElement>('login-choice-manual')
+const loginChoiceAgentfillBtn = $<HTMLButtonElement>('login-choice-agentfill')
+
+const loginManualViewEl = $('login-manual-view')
+const loginManualDoneBtn = $<HTMLButtonElement>('login-manual-done-btn')
+const loginManualCancelBtn = $<HTMLButtonElement>('login-manual-cancel-btn')
+const manualCountdownEl = $('manual-countdown')
+
+const loginAgentfillViewEl = $('login-agentfill-view')
+const agentfillDomainEl = $('agentfill-domain')
+const agentfillDetectedBadgeEl = $('agentfill-detected-badge')
+const agentfillUserWrapEl = $('agentfill-user-wrap')
+const agentfillPassWrapEl = $('agentfill-pass-wrap')
+const agentfillUserEl = $<HTMLInputElement>('agentfill-user')
+const agentfillPassEl = $<HTMLInputElement>('agentfill-pass')
+const agentfillRememberEl = $<HTMLInputElement>('agentfill-remember')
+const agentfillSubmitBtn = $<HTMLButtonElement>('agentfill-submit-btn')
+const agentfillCancelBtn = $<HTMLButtonElement>('agentfill-cancel-btn')
+
 const resultEl = $('result')
 const resultTitleEl = $('result-title')
 const resultBodyEl = $('result-body')
@@ -54,6 +76,13 @@ const shotsClearBtn = $('shots-clear')
 const backendDot = $('backend-dot')
 
 ;($('validator-link') as HTMLAnchorElement).href = `${BACKEND_URL}/validate`
+
+// ---------- privacy panel element refs ----------
+
+const privacySectionEl = $('privacy-section')
+const privacyStatusBadgeEl = $('privacy-status-badge')
+const privacyDetectedListEl = $('privacy-detected-list')
+const privacyPreviewBodyEl = $('privacy-preview-body')
 
 // ---------- sidebar + drawer element refs ----------
 
@@ -75,7 +104,7 @@ const settingsSavedEl = $('settings-saved')
 const settingsClearHistoryBtn = $<HTMLButtonElement>('settings-clear-history')
 
 // ================================================================
-// IndexedDB — Recent activities
+// IndexedDB — Recent activities & Local Credential Vault
 // ================================================================
 
 interface ActivityRecord {
@@ -87,9 +116,17 @@ interface ActivityRecord {
 	timestamp: number
 }
 
+interface CredentialRecord {
+	domain: string
+	username: string
+	password: string
+	updatedAt: number
+}
+
 const DB_NAME = 'privo-history'
 const DB_STORE = 'activities'
-const DB_VERSION = 1
+const DB_CRED_STORE = 'credentials'
+const DB_VERSION = 2
 
 function openHistoryDB(): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
@@ -100,10 +137,245 @@ function openHistoryDB(): Promise<IDBDatabase> {
 				const store = db.createObjectStore(DB_STORE, { keyPath: 'id' })
 				store.createIndex('timestamp', 'timestamp')
 			}
+			if (!db.objectStoreNames.contains(DB_CRED_STORE)) {
+				const credStore = db.createObjectStore(DB_CRED_STORE, { keyPath: 'domain' })
+				credStore.createIndex('updatedAt', 'updatedAt')
+			}
 		}
 		req.onsuccess = () => resolve(req.result)
 		req.onerror = () => reject(req.error)
 	})
+}
+
+async function saveCredential(domain: string, username: string, password: string): Promise<void> {
+	if (!domain) return
+	try {
+		const db = await openHistoryDB()
+		const tx = db.transaction(DB_CRED_STORE, 'readwrite')
+		tx.objectStore(DB_CRED_STORE).put({
+			domain: domain.toLowerCase().replace(/^www\./, ''),
+			username,
+			password,
+			updatedAt: Date.now(),
+		} satisfies CredentialRecord)
+		tx.oncomplete = () => db.close()
+	} catch (e) {
+		console.warn('[PRIVO] Failed to save credential to vault', e)
+	}
+}
+
+async function getCredential(domain: string): Promise<CredentialRecord | null> {
+	if (!domain) return null
+	const cleanDomain = domain.toLowerCase().replace(/^www\./, '')
+	try {
+		const db = await openHistoryDB()
+		return new Promise((resolve) => {
+			const tx = db.transaction(DB_CRED_STORE, 'readonly')
+			const req = tx.objectStore(DB_CRED_STORE).get(cleanDomain)
+			req.onsuccess = () => {
+				db.close()
+				resolve((req.result as CredentialRecord) ?? null)
+			}
+			req.onerror = () => {
+				db.close()
+				resolve(null)
+			}
+		})
+	} catch {
+		return null
+	}
+}
+
+async function resolveCurrentTab(): Promise<chrome.tabs.Tab | null> {
+	// 1. Agent's currentTabId if agent is running
+	try {
+		if (agent?.tabsController?.currentTabId) {
+			const t = await chrome.tabs.get(agent.tabsController.currentTabId)
+			if (t?.id) return t
+		}
+	} catch {}
+
+	// 2. Storage currentTabId tracked by TabsController
+	try {
+		const { currentTabId } = (await chrome.storage.local.get('currentTabId')) as { currentTabId?: number }
+		if (typeof currentTabId === 'number') {
+			const t = await chrome.tabs.get(currentTabId)
+			if (t?.id) return t
+		}
+	} catch {}
+
+	// 3. Active tab in lastFocusedWindow (standard for Chrome side panel)
+	try {
+		const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+		if (tab?.id) return tab
+	} catch {}
+
+	// 4. Fallback to currentWindow
+	try {
+		const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+		if (tab?.id) return tab
+	} catch {}
+
+	return null
+}
+
+async function getCurrentDomain(): Promise<string> {
+	try {
+		const tab = await resolveCurrentTab()
+		if (tab?.url) {
+			const u = new URL(tab.url)
+			return u.hostname.toLowerCase().replace(/^www\./, '')
+		}
+	} catch {}
+	return ''
+}
+
+interface PageLoginFields {
+	hasPassword: boolean
+	isPasswordFilled: boolean
+	hasUsername: boolean
+	isUsernameFilled: boolean
+	usernameVal: string
+	hasOtp: boolean
+	isOtpFilled?: boolean
+	onlyFieldNeeded?: 'password' | 'username' | 'otp' | 'both'
+}
+
+/**
+ * Direct DOM inspection executed via chrome.scripting.executeScript
+ */
+function inspectDomLoginFields() {
+	const inputs = Array.from(
+		document.querySelectorAll(
+			'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"])'
+		)
+	) as HTMLInputElement[]
+
+	const iframeInputs: HTMLInputElement[] = []
+	try {
+		const iframes = Array.from(document.querySelectorAll('iframe'))
+		for (const iframe of iframes) {
+			try {
+				const doc = iframe.contentDocument || iframe.contentWindow?.document
+				if (doc) {
+					iframeInputs.push(
+						...(Array.from(
+							doc.querySelectorAll(
+								'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"])'
+							)
+						) as HTMLInputElement[])
+					)
+				}
+			} catch {}
+		}
+	} catch {}
+
+	const allInputs = [...inputs, ...iframeInputs]
+
+	const passwordInput = allInputs.find(
+		(i) => i.type === 'password' || /password|passwd|pwd/i.test(i.name || i.id || i.placeholder || '')
+	)
+
+	const otpInput = allInputs.find(
+		(i) => /otp|2fa|verification|code|pin|token/i.test(i.name || i.id || i.placeholder || i.autocomplete || '')
+	)
+
+	const userInputs = allInputs.filter((i) => i !== passwordInput && i !== otpInput)
+
+	// Priority 1: User input that already has a non-empty value (e.g. prefilled JIS ID)
+	const filledUserInput = userInputs.find(
+		(i) =>
+			(i.value?.trim().length ?? 0) > 0 &&
+			!/search|query|filter|date|captcha|csrf|token|session/i.test(i.name || i.id || i.placeholder || '')
+	)
+
+	// Priority 2: Input matching user/login/email/id/student/roll regex
+	const namedUserInput = userInputs.find((i) =>
+		/user|email|login|account|enroll|roll|id|phone|student|reg|member/i.test(
+			i.name || i.id || i.placeholder || i.autocomplete || ''
+		)
+	)
+
+	const userInput = filledUserInput || namedUserInput || userInputs[0]
+
+	const hasUsername = Boolean(userInput)
+	const usernameVal = (userInput?.value || filledUserInput?.value || '').trim()
+	const isUsernameFilled = usernameVal.length > 0
+
+	const hasPassword = Boolean(passwordInput)
+	const isPasswordFilled = Boolean(passwordInput && passwordInput.value.length > 0)
+
+	const hasOtp = Boolean(otpInput)
+	const isOtpFilled = Boolean(otpInput && otpInput.value.length > 0)
+
+	let onlyFieldNeeded: 'password' | 'username' | 'otp' | 'both' = 'both'
+	if (hasOtp && !isOtpFilled && !hasPassword) {
+		onlyFieldNeeded = 'otp'
+	} else if (hasPassword && !isPasswordFilled) {
+		if (isUsernameFilled || !hasUsername) {
+			onlyFieldNeeded = 'password'
+		} else {
+			onlyFieldNeeded = 'both'
+		}
+	} else if (hasUsername && !isUsernameFilled && (isPasswordFilled || !hasPassword)) {
+		onlyFieldNeeded = 'username'
+	}
+
+	return {
+		hasPassword,
+		isPasswordFilled,
+		hasUsername,
+		isUsernameFilled,
+		usernameVal,
+		hasOtp,
+		isOtpFilled,
+		onlyFieldNeeded,
+	}
+}
+
+async function detectPageLoginFields(): Promise<PageLoginFields | null> {
+	try {
+		const tab = await resolveCurrentTab()
+		if (!tab?.id) return null
+
+		// Method 1: Ask content script via tabs.sendMessage
+		try {
+			const res = (await chrome.tabs.sendMessage(tab.id, {
+				type: 'PAGE_CONTROL',
+				action: 'detect_login_fields',
+				payload: {},
+			})) as { success: boolean; data?: PageLoginFields }
+			if (res?.success && res.data) {
+				return res.data
+			}
+		} catch {}
+
+		// Method 2: Via agent remotePageController if running
+		if (agent?.remotePageController) {
+			try {
+				const res = await agent.remotePageController.detectLoginFields()
+				if (res?.success && res.data) {
+					return res.data
+				}
+			} catch {}
+		}
+
+		// Method 3: Fallback direct execution via chrome.scripting.executeScript
+		if (chrome.scripting?.executeScript) {
+			try {
+				const results = await chrome.scripting.executeScript({
+					target: { tabId: tab.id },
+					func: inspectDomLoginFields,
+				})
+				if (results?.[0]?.result) {
+					return results[0].result as PageLoginFields
+				}
+			} catch {}
+		}
+	} catch {
+		// Fallback
+	}
+	return null
 }
 
 async function saveActivity(record: Omit<ActivityRecord, 'id'>) {
@@ -610,23 +882,17 @@ function showAskMode(mode: 'standard' | 'login') {
 /** Render login method chips inside the login options area */
 function renderLoginMethodChips(methods: string[]) {
 	loginOptionsEl.replaceChildren()
-	// Always offer "Use browser autofill" first
-	const autofillChip = document.createElement('button')
-	autofillChip.className = 'ask-chip'
-	autofillChip.textContent = 'Browser autofill'
-	autofillChip.style.animationDelay = '0ms'
-	autofillChip.addEventListener('click', () => {
-		autofillChip.classList.add('selected')
-		setTimeout(() => askResolve?.('Use browser autofill to fill in the credentials, then submit'), 160)
-	})
-	loginOptionsEl.appendChild(autofillChip)
-
-	// Add any methods detected from the question
+	if (methods.length === 0) {
+		loginOptionsEl.classList.remove('login-options-visible')
+		loginOptionsEl.classList.add('login-options-hidden')
+		return
+	}
+	// Add any methods detected from the question (e.g. Google, Apple, SSO)
 	methods.forEach((m, i) => {
 		const chip = document.createElement('button')
 		chip.className = 'ask-chip'
 		chip.textContent = m
-		chip.style.animationDelay = `${(i + 1) * 55}ms`
+		chip.style.animationDelay = `${i * 55}ms`
 		chip.addEventListener('click', () => {
 			document.querySelectorAll('#login-options .ask-chip').forEach(c => c.classList.remove('selected'))
 			chip.classList.add('selected')
@@ -687,21 +953,35 @@ function askUser(question: string, options?: { signal: AbortSignal }): Promise<s
 	// ── Login gate case: agent is asking user to sign in ──
 	if (isLoginQuestion(question)) {
 		_lastLoginQuestion = question
-		loginGateMsgEl.textContent = 'This page requires login to continue. How would you like to proceed?'
-		// Reset chips — will be shown only after "Sign In" is clicked
-		loginOptionsEl.replaceChildren()
-		loginOptionsEl.classList.remove('login-options-visible')
-		loginOptionsEl.classList.add('login-options-hidden')
+		_skippedLogin = false
+
+		// Reset views and fields
+		loginActionChoicesEl.classList.remove('hidden')
+		loginManualViewEl.classList.add('hidden')
+		loginAgentfillViewEl.classList.add('hidden')
 		loginInputZoneEl.classList.add('hidden')
-		loginSigninBtn.textContent = 'Sign In'
-		loginSigninBtn.disabled = false
+		loginFieldAEl.value = ''
+		loginOptionsEl.replaceChildren()
+		loginOptionsEl.classList.add('login-options-hidden')
+		loginGateMsgEl.textContent = 'This page requires login to continue. Choose how to proceed:'
 
 		showAskMode('login')
 		showStage('ask')
 		setStatus('waiting')
 
-		return new Promise<string>((resolve, reject) => {
+		let manualTimerId: number | null = null
+
+		const clearManualMode = () => {
+			if (manualTimerId) {
+				clearInterval(manualTimerId)
+				manualTimerId = null
+			}
+			void chrome.storage.local.set({ maskSuppressed: false, manualLoginActive: false })
+		}
+
+		return new Promise<string>(async (resolve, reject) => {
 			askResolve = (answer: string) => {
+				clearManualMode()
 				askResolve = null
 				showStage('now')
 				setNowAction('Continuing…', 'swap')
@@ -709,24 +989,206 @@ function askUser(question: string, options?: { signal: AbortSignal }): Promise<s
 				resolve(answer)
 			}
 
-			// Sign In button → reveal method chips
-			loginSigninBtn.onclick = () => {
-				_skippedLogin = false
-				loginSigninBtn.textContent = 'Signing in…'
-				loginSigninBtn.disabled = true
-				const methods = parseLoginMethods(question)
-				renderLoginMethodChips(methods)
-				// Hide the Sign In / Not Now buttons row, show chips
-				loginSigninBtn.closest('.login-gate-btns')!.classList.add('hidden')
+			// Pre-fetch page login fields immediately in background so it's ready without latency
+			const pageFieldsPromise = detectPageLoginFields()
+
+			// 1. Detect current domain & check IndexedDB vault
+			const domain = await getCurrentDomain()
+			const savedCred = domain ? await getCredential(domain) : null
+
+			if (savedCred) {
+				loginChoiceAutofillBtn.textContent = `Autofill (${savedCred.username})`
+			} else {
+				loginChoiceAutofillBtn.textContent = 'Browser autofill'
 			}
 
-			// Not now → try without login
+			// Render any other detected methods (Google, Apple, etc.) below the choices
+			const methods = parseLoginMethods(question)
+			if (methods.length > 0) {
+				renderLoginMethodChips(methods)
+			}
+
+			// ── Option 1: Autofill ──
+			loginChoiceAutofillBtn.onclick = () => {
+				if (savedCred) {
+					askResolve?.(`Fill username "${savedCred.username}" and password "${savedCred.password}" into the login form and submit.`)
+				} else {
+					askResolve?.('Use browser autofill to fill in the credentials, then submit')
+				}
+			}
+
+			// ── Option 2: Manual Login ──
+			loginChoiceManualBtn.onclick = async () => {
+				loginActionChoicesEl.classList.add('hidden')
+				loginManualViewEl.classList.remove('hidden')
+				loginOptionsEl.classList.add('login-options-hidden')
+
+				// Stop agent screen access and hide overlay mask immediately
+				await chrome.storage.local.set({ maskSuppressed: true, manualLoginActive: true })
+
+				// 45s countdown timer with auto-resume
+				let secondsLeft = 45
+				manualCountdownEl.textContent = `Auto-resumes in ${secondsLeft}s`
+				if (manualTimerId) clearInterval(manualTimerId)
+				manualTimerId = window.setInterval(() => {
+					secondsLeft--
+					if (secondsLeft > 0) {
+						manualCountdownEl.textContent = `Auto-resumes in ${secondsLeft}s`
+					} else {
+						clearInterval(manualTimerId!)
+						manualTimerId = null
+						manualCountdownEl.textContent = 'Resuming now…'
+						askResolve?.('I have completed the login manually on the webpage. Please continue the task.')
+					}
+				}, 1000)
+			}
+
+			loginManualDoneBtn.onclick = () => {
+				askResolve?.('I have completed the login manually on the webpage. Please continue the task.')
+			}
+
+			loginManualCancelBtn.onclick = async () => {
+				clearManualMode()
+				loginManualViewEl.classList.add('hidden')
+				loginActionChoicesEl.classList.remove('hidden')
+				if (methods.length > 0) loginOptionsEl.classList.remove('login-options-hidden')
+			}
+
+			// ── Option 3: Agent Fill & Save ──
+			loginChoiceAgentfillBtn.onclick = async () => {
+				loginActionChoicesEl.classList.add('hidden')
+				loginOptionsEl.classList.add('login-options-hidden')
+				agentfillDomainEl.textContent = domain || 'this site'
+
+				// Inspect active tab DOM (using pre-fetched promise or fresh call)
+				const pageFields = (await pageFieldsPromise) || (await detectPageLoginFields())
+				const isPasswordOnlyQuestion =
+					/password/i.test(question) && !/(username|email|user\s+id|account|roll|enroll)/i.test(question)
+				const usernameAlreadyFilled = Boolean(pageFields?.isUsernameFilled && pageFields.usernameVal)
+				const onlyPasswordNeeded =
+					pageFields?.onlyFieldNeeded === 'password' ||
+					usernameAlreadyFilled ||
+					isPasswordOnlyQuestion ||
+					Boolean(pageFields?.hasPassword && !pageFields.hasUsername)
+				const onlyOtpNeeded =
+					pageFields?.onlyFieldNeeded === 'otp' || Boolean(pageFields?.hasOtp && !pageFields.hasPassword)
+
+				if (onlyOtpNeeded) {
+					agentfillUserWrapEl?.classList.add('hidden')
+					agentfillPassWrapEl?.classList.remove('hidden')
+					agentfillPassEl.placeholder = 'Enter OTP or verification code'
+					agentfillPassEl.type = 'text'
+					agentfillPassEl.value = ''
+					agentfillDetectedBadgeEl.textContent = '🔒 Enter OTP / verification code sent to you'
+					agentfillDetectedBadgeEl.classList.remove('hidden')
+					agentfillSubmitBtn.textContent = 'Submit OTP'
+					loginAgentfillViewEl.classList.remove('hidden')
+					agentfillPassEl.focus()
+				} else if (onlyPasswordNeeded) {
+					// Hide username box — only show password input!
+					agentfillUserWrapEl?.classList.add('hidden')
+					agentfillPassWrapEl?.classList.remove('hidden')
+					agentfillPassEl.placeholder = 'Password'
+					agentfillPassEl.type = 'password'
+					agentfillSubmitBtn.textContent = 'Fill & Login'
+
+					const detectedUser = pageFields?.usernameVal || savedCred?.username || ''
+					if (detectedUser) {
+						agentfillDetectedBadgeEl.innerHTML = `<span>✓ Username: <strong>${detectedUser}</strong> (already filled)</span><button id="agentfill-edit-user-btn" type="button" class="agentfill-badge-edit-btn">Edit</button>`
+						agentfillDetectedBadgeEl.classList.remove('hidden')
+						const editBtn = document.getElementById('agentfill-edit-user-btn')
+						if (editBtn) {
+							editBtn.onclick = () => {
+								agentfillUserWrapEl?.classList.toggle('hidden')
+								if (!agentfillUserWrapEl?.classList.contains('hidden')) {
+									agentfillUserEl.value = detectedUser
+									agentfillUserEl.focus()
+								}
+							}
+						}
+					} else {
+						agentfillDetectedBadgeEl.classList.add('hidden')
+					}
+					agentfillPassEl.value = savedCred?.password || ''
+					loginAgentfillViewEl.classList.remove('hidden')
+					agentfillPassEl.focus()
+				} else {
+					// Both username and password needed
+					agentfillUserWrapEl?.classList.remove('hidden')
+					agentfillPassWrapEl?.classList.remove('hidden')
+					agentfillPassEl.placeholder = 'Password'
+					agentfillPassEl.type = 'password'
+					agentfillSubmitBtn.textContent = 'Fill & Login'
+					agentfillDetectedBadgeEl.classList.add('hidden')
+					if (savedCred) {
+						agentfillUserEl.value = savedCred.username
+						agentfillPassEl.value = savedCred.password
+					} else {
+						agentfillUserEl.value = ''
+						agentfillPassEl.value = ''
+					}
+					loginAgentfillViewEl.classList.remove('hidden')
+					agentfillUserEl.focus()
+				}
+			}
+
+			// Enter key shortcuts for fast input submission
+			agentfillPassEl.onkeydown = (e) => {
+				if (e.key === 'Enter') {
+					e.preventDefault()
+					agentfillSubmitBtn.click()
+				}
+			}
+			agentfillUserEl.onkeydown = (e) => {
+				if (e.key === 'Enter') {
+					e.preventDefault()
+					if (!agentfillPassWrapEl?.classList.contains('hidden')) {
+						agentfillPassEl.focus()
+					} else {
+						agentfillSubmitBtn.click()
+					}
+				}
+			}
+
+			agentfillSubmitBtn.onclick = async () => {
+				const pageFields = (await pageFieldsPromise) || (await detectPageLoginFields())
+				const usernameAlreadyFilled = Boolean(pageFields?.isUsernameFilled && pageFields.usernameVal)
+				const password = agentfillPassEl.value.trim()
+				const username = agentfillUserEl.value.trim() || pageFields?.usernameVal || savedCred?.username || ''
+
+				if (!password && !username) {
+					agentfillPassEl.focus()
+					return
+				}
+
+				if (agentfillRememberEl.checked && domain && (username || password)) {
+					await saveCredential(domain, username, password)
+				}
+
+				const isPasswordOnly =
+					usernameAlreadyFilled ||
+					(agentfillUserWrapEl?.classList.contains('hidden') && password)
+				if (isPasswordOnly) {
+					askResolve?.(`Fill in password "${password}" into the password field and submit.`)
+				} else {
+					askResolve?.(`Fill in username "${username}" and password "${password}" into the login form and submit.`)
+				}
+			}
+
+			agentfillCancelBtn.onclick = () => {
+				loginAgentfillViewEl.classList.add('hidden')
+				loginActionChoicesEl.classList.remove('hidden')
+				if (methods.length > 0) loginOptionsEl.classList.remove('login-options-hidden')
+			}
+
+			// ── Skip ──
 			loginSkipBtn.onclick = () => {
 				_skippedLogin = true
 				askResolve?.('No, proceed without login and try to access the page anyway')
 			}
 
 			options?.signal.addEventListener('abort', () => {
+				clearManualMode()
 				askResolve = null
 				reject(new DOMException('Task stopped', 'AbortError'))
 			})
@@ -769,27 +1231,8 @@ loginFieldAEl.addEventListener('keydown', (e) => {
 
 // Sorry screen buttons
 $('sorry-signin').addEventListener('click', () => {
-	// Re-open the login gate for the last login question
-	showAskMode('login')
-	showStage('ask')
-	loginSigninBtn.textContent = 'Sign In'
-	loginSigninBtn.disabled = false
-	loginSigninBtn.closest('.login-gate-btns')?.classList.remove('hidden')
-	loginOptionsEl.replaceChildren()
-	loginOptionsEl.classList.remove('login-options-visible')
-	loginOptionsEl.classList.add('login-options-hidden')
 	_skippedLogin = false
-
-	loginSigninBtn.onclick = () => {
-		loginSigninBtn.textContent = 'Signing in…'
-		loginSigninBtn.disabled = true
-		renderLoginMethodChips(parseLoginMethods(_lastLoginQuestion))
-		loginSigninBtn.closest('.login-gate-btns')!.classList.add('hidden')
-	}
-	loginSkipBtn.onclick = () => {
-		_skippedLogin = true
-		askResolve?.('No, proceed without login and try to access the page anyway')
-	}
+	void askUser(_lastLoginQuestion || 'Please log in to continue')
 })
 $('sorry-newtask').addEventListener('click', () => void resetToComposer())
 
@@ -806,7 +1249,9 @@ async function runTask() {
 		baseURL: DEFAULT_LLM_CONFIG.baseURL,
 		model: DEFAULT_LLM_CONFIG.model,
 		maxSteps: _settings.maxSteps,
-		stepDelay: _settings.stepDelay,
+		// [PRIVO BUG-1 FIX] UI stores milliseconds; PageAgentCore expects seconds.
+		// 500 ms → 0.5 s, 1000 ms → 1 s, 2000 ms → 2 s. Conversion done exactly once here.
+		stepDelay: _settings.stepDelay / 1000,
 		disableNamedToolChoice: DEFAULT_LLM_CONFIG.disableNamedToolChoice,
 		transformRequestBody: DEFAULT_LLM_CONFIG.transformRequestBody,
 		customFetch: llmFetch,
@@ -1178,3 +1623,116 @@ function renderMarkdown(raw: string): string {
 }
 
 showStage('composer')
+
+// ================================================================
+// Privacy Panel — "What Leaves My Device"
+// ================================================================
+
+import type { RedactionReport, PrivacyStatus } from '../privacy/privacy-types'
+
+function renderPrivacyPanel(report: RedactionReport, status: PrivacyStatus): void {
+	if (!privacySectionEl) return
+
+	privacySectionEl.classList.remove('hidden')
+
+	// Update status badge
+	const badgeClass: Record<PrivacyStatus, string> = {
+		SCANNING: 'privacy-badge--scanning',
+		NO_SENSITIVE_DATA: 'privacy-badge--safe',
+		REDACTED: 'privacy-badge--redacted',
+		BLOCKED: 'privacy-badge--blocked',
+	}
+	const badgeLabel: Record<PrivacyStatus, string> = {
+		SCANNING: '🔍 Scanning…',
+		NO_SENSITIVE_DATA: '✓ No sensitive data detected',
+		REDACTED: `🔒 Sanitized · ${report.detectedItems.length} item${report.detectedItems.length !== 1 ? 's' : ''}`,
+		BLOCKED: '⛔ Blocked — see details',
+	}
+
+	privacyStatusBadgeEl.className = `privacy-badge ${badgeClass[status]}`
+	privacyStatusBadgeEl.textContent = badgeLabel[status]
+
+	// Render detected category pills — no raw values, only placeholders
+	privacyDetectedListEl.replaceChildren()
+	for (const item of report.detectedItems) {
+		const pill = document.createElement('span')
+		pill.className = 'privacy-pill'
+		pill.textContent = `${item.placeholder}  ·  ${item.category}`
+		privacyDetectedListEl.appendChild(pill)
+	}
+
+	// Render "What leaves this device" preview
+	const leaving: string[] = []
+	const staying: string[] = []
+
+	if (report.sanitizedSources.includes('task')) leaving.push('✓ Sanitized task')
+	else leaving.push('✓ Task')
+
+	if (report.sanitizedSources.includes('dom')) leaving.push('✓ Sanitized page text')
+	else leaving.push('✓ Page text')
+
+	if (report.sanitizedSources.includes('url')) leaving.push('✓ Sanitized URL')
+	else leaving.push('✓ Navigation URL')
+
+	if (report.sanitizedSources.some((s) => s.startsWith('screenshot'))) {
+		leaving.push('✓ Redacted screenshot')
+	}
+
+	for (const item of report.detectedItems) {
+		staying.push(`${item.placeholder} → [redacted]`)
+	}
+
+	const preventedSensitiveFields = report.redactedCategories.filter(
+		(c) => c === 'PASSWORD' || c === 'OTP'
+	)
+	if (preventedSensitiveFields.length > 0) {
+		staying.push(`${preventedSensitiveFields.join(', ')} field(s) detected (never sent)`)
+	}
+
+	if (report.blockedReasons.length > 0) {
+		staying.push(...report.blockedReasons.map((r) => `⛔ ${r}`))
+	}
+
+	privacyPreviewBodyEl.innerHTML = [
+		leaving.length ? `<div class="privacy-preview-group"><strong>Leaving device (sanitized):</strong>${leaving.map((l) => `<div class="privacy-preview-item">${l}</div>`).join('')}</div>` : '',
+		staying.length ? `<div class="privacy-preview-group"><strong>Staying local:</strong>${staying.map((s) => `<div class="privacy-preview-item privacy-preview-item--local">${s}</div>`).join('')}</div>` : '',
+	].join('')
+}
+
+function showPrivacyBlocked(reason: string): void {
+	if (!privacySectionEl) return
+	privacySectionEl.classList.remove('hidden')
+	privacyStatusBadgeEl.className = 'privacy-badge privacy-badge--blocked'
+	privacyStatusBadgeEl.textContent = '⛔ Blocked — see details'
+	privacyDetectedListEl.replaceChildren()
+	privacyPreviewBodyEl.innerHTML = `<div class="privacy-blocked-reason">Privacy scan blocked: ${reason}</div>`
+}
+
+function clearPrivacyPanel(): void {
+	if (!privacySectionEl) return
+	privacySectionEl.classList.add('hidden')
+	privacyStatusBadgeEl.className = 'privacy-badge privacy-badge--scanning'
+	privacyStatusBadgeEl.textContent = '🔍 Scanning…'
+	privacyDetectedListEl.replaceChildren()
+	privacyPreviewBodyEl.textContent = ''
+}
+
+// Listen for privacy events dispatched by MultiPageAgent
+window.addEventListener('privo:privacy-update', (e: Event) => {
+	const report = (e as CustomEvent<RedactionReport>).detail
+	if (!report) return
+	const status: PrivacyStatus = report.detectedItems.length > 0 ? 'REDACTED' : 'NO_SENSITIVE_DATA'
+	renderPrivacyPanel(report, status)
+})
+
+window.addEventListener('privo:privacy-blocked', (e: Event) => {
+	const { reason } = (e as CustomEvent<{ reason: string }>).detail ?? {}
+	showPrivacyBlocked(reason ?? 'Unknown error')
+})
+
+// Clear privacy panel at the start of each new task
+const _origRunTask = runTask
+// runTask is defined earlier in the file — we hook the clear call into showStage
+const _origShowStageForPrivacy = showStage
+;(window as any).__privoPrivacyClearOnNewTask = clearPrivacyPanel
+

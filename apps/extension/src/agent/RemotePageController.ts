@@ -174,6 +174,16 @@ export class RemotePageController {
 		}
 		return result
 	}
+
+	async detectLoginFields(): Promise<any> {
+		if (!this.currentTabId) return null
+		return sendMessage({
+			type: 'PAGE_CONTROL',
+			action: 'detect_login_fields',
+			targetTabId: this.currentTabId,
+			payload: {},
+		})
+	}
 }
 
 interface DomActionReturn {

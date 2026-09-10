@@ -8,11 +8,13 @@
         "dev": "concurrently \"vite build -c build/vite.panel.ts --watch\" \"vite build -c build/vite.background.ts --watch\" \"vite build -c build/vite.content.ts --watch\"",
         "build": "vite build -c build/vite.panel.ts && vite build -c build/vite.background.ts && vite build -c build/vite.content.ts",
         "typecheck": "tsc --noEmit",
+        "test": "bun test",
         "package": "cd dist && zip -qr ../deccan-page-agent-ext.zip ."
     },
     "dependencies": {
         "ai-motion": "^0.4.8",
         "chalk": "^6.0.0",
+        "tesseract.js": "^7.0.0",
         "zod": "^4.4.3"
     },
     "devDependencies": {

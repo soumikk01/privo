@@ -109,6 +109,7 @@ export function initPageController() {
 		'scroll_horizontally',
 		'get_scroll_info',
 		'scroll_to_position',
+		'detect_login_fields',
 	])
 
 	chrome.runtime.onMessage.addListener((message, sender, sendResponse): true | undefined => {
@@ -200,6 +201,100 @@ export function initPageController() {
 			// Report where the page ACTUALLY landed — the browser clamps scrollTo at
 			// (scrollHeight - viewportHeight). Stitching must use this real offset.
 			sendResponse({ success: true, y: window.scrollY })
+			return
+		}
+
+		if (action === 'detect_login_fields') {
+			const inputs = Array.from(
+				document.querySelectorAll<HTMLInputElement>(
+					'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"])'
+				)
+			)
+
+			// Also inspect accessible same-origin iframes if top-level has no fields
+			const iframeInputs: HTMLInputElement[] = []
+			try {
+				const iframes = Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe'))
+				for (const iframe of iframes) {
+					try {
+						const doc = iframe.contentDocument || iframe.contentWindow?.document
+						if (doc) {
+							iframeInputs.push(
+								...Array.from(
+									doc.querySelectorAll<HTMLInputElement>(
+										'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"])'
+									)
+								)
+							)
+						}
+					} catch {}
+				}
+			} catch {}
+
+			const allInputs = [...inputs, ...iframeInputs]
+
+			const passwordInput = allInputs.find(
+				(i) => i.type === 'password' || /password|passwd|pwd/i.test(i.name || i.id || i.placeholder || '')
+			)
+
+			const otpInput = allInputs.find(
+				(i) => /otp|2fa|verification|code|pin|token/i.test(i.name || i.id || i.placeholder || i.autocomplete || '')
+			)
+
+			const userInputs = allInputs.filter((i) => i !== passwordInput && i !== otpInput)
+
+			// Priority 1: User input that already has a non-empty value (e.g. filled by user/agent)
+			const filledUserInput = userInputs.find(
+				(i) =>
+					(i.value?.trim().length ?? 0) > 0 &&
+					!/search|query|filter|date|captcha|csrf|token|session/i.test(i.name || i.id || i.placeholder || '')
+			)
+
+			// Priority 2: Input matching user/login/email/id/student/roll regex
+			const namedUserInput = userInputs.find((i) =>
+				/user|email|login|account|enroll|roll|id|phone|student|reg|member/i.test(
+					i.name || i.id || i.placeholder || i.autocomplete || ''
+				)
+			)
+
+			const userInput = filledUserInput || namedUserInput || userInputs[0]
+
+			const hasUsername = Boolean(userInput)
+			const usernameVal = (userInput?.value || filledUserInput?.value || '').trim()
+			const isUsernameFilled = usernameVal.length > 0
+
+			const hasPassword = Boolean(passwordInput)
+			const isPasswordFilled = Boolean(passwordInput && passwordInput.value.length > 0)
+
+			const hasOtp = Boolean(otpInput)
+			const isOtpFilled = Boolean(otpInput && otpInput.value.length > 0)
+
+			let onlyFieldNeeded: 'password' | 'username' | 'otp' | 'both' = 'both'
+			if (hasOtp && !isOtpFilled && !hasPassword) {
+				onlyFieldNeeded = 'otp'
+			} else if (hasPassword && !isPasswordFilled) {
+				if (isUsernameFilled || !hasUsername) {
+					onlyFieldNeeded = 'password'
+				} else {
+					onlyFieldNeeded = 'both'
+				}
+			} else if (hasUsername && !isUsernameFilled && (isPasswordFilled || !hasPassword)) {
+				onlyFieldNeeded = 'username'
+			}
+
+			sendResponse({
+				success: true,
+				data: {
+					hasPassword,
+					isPasswordFilled,
+					hasUsername,
+					isUsernameFilled,
+					usernameVal,
+					hasOtp,
+					isOtpFilled,
+					onlyFieldNeeded,
+				},
+			})
 			return
 		}
 

@@ -57,14 +57,31 @@ const SECRET_PATH = resolve(DATA_DIR, '.signing-secret')
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
 
-if (!existsSync(SECRET_PATH)) {
+// [PRIVO BUG-3 FIX] An empty SIGNING_SECRET in .env (SIGNING_SECRET=) produces
+// process.env.SIGNING_SECRET === '' which is NOT nullish — the ?? operator falls
+// through correctly BUT .trim() on '' still gives ''. Always check length after trim.
+function loadSigningSecret(): string {
+  // 1. Environment variable wins if non-empty after trim
+  const fromEnv = (process.env.SIGNING_SECRET ?? '').trim()
+  if (fromEnv.length > 0) return fromEnv
+
+  // 2. Persistent file wins if it exists and is non-empty
+  if (existsSync(SECRET_PATH)) {
+    const fromFile = readFileSync(SECRET_PATH, 'utf8').trim()
+    if (fromFile.length > 0) return fromFile
+  }
+
+  // 3. Generate a fresh secret — this session's records are verifiable only
+  //    while this process runs. Persist to .env for cross-restart durability.
   const generated = randomBytes(32).toString('hex')
   writeFileSync(SECRET_PATH, generated, { mode: 0o600 })
+  // NOTE: never log the actual secret value — log only the indication.
   console.log('[init] Generated signing secret → data/.signing-secret')
   console.log('[init] Persist across restarts by adding to .env:')
-  console.log(`[init]   SIGNING_SECRET=${generated}`)
+  console.log('[init]   SIGNING_SECRET=<see data/.signing-secret>')
+  return generated
 }
-const SIGNING_SECRET = (process.env.SIGNING_SECRET ?? readFileSync(SECRET_PATH, 'utf8')).trim()
+const SIGNING_SECRET = loadSigningSecret()
 
 // ─── data model ──────────────────────────────────────────────────────────────
 
@@ -129,7 +146,8 @@ function requireSecret(header: string | undefined): boolean {
 // reverse proxy. Without this, req.ip is always 127.0.0.1 (the proxy's TCP address),
 // making rate limiting a shared global bucket instead of per-client.
 // IMPORTANT: your reverse proxy must strip/overwrite X-Forwarded-For from untrusted clients.
-const app = Fastify({ logger: false, trustProxy: '127.0.0.1' })
+// [PRIVO] bodyLimit: 4MB cap — prevents receiving accidentally unredacted large screenshots.
+const app = Fastify({ logger: false, trustProxy: '127.0.0.1', bodyLimit: 4 * 1024 * 1024 })
 
 // Security headers — X-Frame-Options, X-Content-Type-Options, HSTS, etc.
 // CSP is intentionally omitted here: /validate uses an inline script block.

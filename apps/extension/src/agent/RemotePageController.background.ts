@@ -15,6 +15,7 @@ const PROXIABLE_ACTIONS = new Set([
 	'scroll_horizontally',
 	'get_scroll_info',
 	'scroll_to_position',
+	'detect_login_fields',
 ])
 
 export function handlePageControlMessage(

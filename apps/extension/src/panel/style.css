@@ -1339,3 +1339,321 @@ kbd {
 }
 .settings-brand-gh svg { width: 15px; height: 15px; display: block; }
 .settings-brand-gh:hover { color: var(--ink); transform: translateY(-1px); }
+
+/* ── Privacy Panel ─────────────────────────────────────────────── */
+
+.privacy-section-head { padding-bottom: 0; }
+
+.privacy-header-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+/* Status badge */
+.privacy-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	font-weight: 600;
+	padding: 3px 9px;
+	border-radius: 100px;
+	white-space: nowrap;
+	letter-spacing: 0.01em;
+	transition: background 0.25s, color 0.25s;
+}
+
+.privacy-badge--scanning {
+	background: hsla(45, 90%, 55%, 0.12);
+	color: hsl(45, 85%, 60%);
+	border: 1px solid hsla(45, 90%, 55%, 0.25);
+}
+
+.privacy-badge--safe {
+	background: hsla(145, 65%, 40%, 0.12);
+	color: hsl(145, 55%, 55%);
+	border: 1px solid hsla(145, 65%, 40%, 0.25);
+}
+
+.privacy-badge--redacted {
+	background: hsla(210, 90%, 60%, 0.12);
+	color: hsl(210, 85%, 65%);
+	border: 1px solid hsla(210, 90%, 60%, 0.25);
+}
+
+.privacy-badge--blocked {
+	background: hsla(4, 80%, 55%, 0.12);
+	color: hsl(4, 75%, 65%);
+	border: 1px solid hsla(4, 80%, 55%, 0.25);
+}
+
+/* Detected item pills */
+.privacy-detected-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 10px;
+	min-height: 0;
+}
+
+.privacy-pill {
+	font-family: ui-monospace, 'SF Mono', 'Courier New', monospace;
+	font-size: 10.5px;
+	font-weight: 500;
+	padding: 3px 8px;
+	background: var(--surface-2, hsla(220, 20%, 14%, 0.8));
+	border: 1px solid var(--line, hsla(220, 15%, 25%, 0.5));
+	border-radius: 6px;
+	color: var(--ink-2, #8b949e);
+	letter-spacing: 0.02em;
+}
+
+/* Collapsible "What leaves this device" preview */
+.privacy-preview {
+	margin-top: 12px;
+}
+
+.privacy-preview-summary {
+	font-size: 11.5px;
+	font-weight: 600;
+	color: var(--ink-2, #8b949e);
+	cursor: pointer;
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px 0;
+	user-select: none;
+}
+
+.privacy-preview-summary::before {
+	content: '›';
+	display: inline-block;
+	transition: transform 0.18s;
+	font-size: 13px;
+}
+
+.privacy-preview[open] .privacy-preview-summary::before {
+	transform: rotate(90deg);
+}
+
+.privacy-preview-body {
+	padding: 10px 0 4px 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.privacy-preview-group {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-size: 11px;
+}
+
+.privacy-preview-group strong {
+	font-weight: 700;
+	color: var(--ink, #e6e2dc);
+	margin-bottom: 2px;
+}
+
+.privacy-preview-item {
+	color: hsl(145, 55%, 55%);
+	font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+	font-size: 10.5px;
+	padding-left: 8px;
+}
+
+.privacy-preview-item--local {
+	color: var(--ink-3, #6e7681);
+}
+
+.privacy-blocked-reason {
+	font-size: 11px;
+	color: hsl(4, 75%, 65%);
+	padding: 8px;
+	background: hsla(4, 80%, 55%, 0.06);
+	border: 1px solid hsla(4, 80%, 55%, 0.15);
+	border-radius: 6px;
+	font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/* ── Multi-Choice Login Gate Chips (Minimalistic) ── */
+#login-action-choices {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 8px 0 10px;
+}
+
+#login-action-choices .ask-chip {
+	border-color: var(--accent);
+	color: var(--accent);
+	animation: chip-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#login-action-choices .ask-chip:hover,
+#login-action-choices .ask-chip.selected {
+	background: var(--accent);
+	color: var(--accent-ink);
+}
+
+/* ── Manual Login View ── */
+.login-subview {
+	margin-top: 10px;
+	animation: chip-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.manual-notice {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 10px 12px;
+	border-radius: var(--radius);
+	background: var(--good-soft);
+	border: 1px solid var(--good);
+	margin-bottom: 10px;
+}
+
+.manual-pulse-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--good);
+	margin-top: 4px;
+	flex: none;
+	animation: manualDotPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes manualDotPulse {
+	0%, 100% { opacity: 1; transform: scale(1); }
+	50% { opacity: 0.35; transform: scale(1.3); }
+}
+
+.manual-notice-title {
+	margin: 0 0 2px;
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--good);
+}
+
+.manual-notice-desc {
+	margin: 0;
+	font-size: 11px;
+	color: var(--ink-2);
+	line-height: 1.35;
+}
+
+.manual-timer-bar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 11px;
+	color: var(--ink-3);
+	margin-bottom: 10px;
+	padding: 0 2px;
+}
+
+.manual-countdown-badge {
+	background: var(--surface-2);
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-weight: 600;
+	color: var(--ink-2);
+}
+
+/* ── Agent Fill Form ── */
+.agentfill-instructions {
+	font-size: 12px;
+	color: var(--ink-2);
+	margin: 0 0 8px;
+}
+
+.agentfill-detected-badge {
+	font-size: 11px;
+	color: var(--good);
+	background: var(--good-soft);
+	padding: 5px 10px;
+	border-radius: 6px;
+	margin-bottom: 8px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 500;
+	border: 1px solid var(--good);
+}
+
+.agentfill-badge-edit-btn {
+	margin-left: auto;
+	background: transparent;
+	border: 1px solid currentColor;
+	color: var(--good);
+	font-size: 10px;
+	font-weight: 600;
+	padding: 1px 7px;
+	border-radius: 4px;
+	cursor: pointer;
+	line-height: 1.4;
+	transition: background 0.15s, color 0.15s;
+}
+
+.agentfill-badge-edit-btn:hover {
+	background: var(--good);
+	color: var(--surface);
+}
+
+.agentfill-form {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.agentfill-form input[type="text"],
+.agentfill-form input[type="password"] {
+	width: 100%;
+	padding: 9px 12px;
+	border-radius: 8px;
+	border: 1px solid var(--line-strong);
+	background: var(--surface);
+	color: var(--ink);
+	font: inherit;
+	font-size: 13px;
+	outline: none;
+	transition: border-color 0.15s;
+}
+
+.agentfill-form input:focus {
+	border-color: var(--accent);
+}
+
+.agentfill-save-row {
+	display: flex;
+	align-items: center;
+	font-size: 12px;
+	color: var(--ink-2);
+	margin-top: 2px;
+}
+
+.save-vault-label {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.login-subview-actions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	margin-top: 4px;
+}
+
+.login-gate-footer {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 10px;
+}
+

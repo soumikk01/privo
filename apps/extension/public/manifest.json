@@ -4,7 +4,7 @@
     "version": "0.1.0",
     "description": "Control web pages with natural language: multi-tab automation plus screenshot capture. Internal PRIVO AI tool.",
     "minimum_chrome_version": "116",
-    "permissions": ["tabs", "tabGroups", "sidePanel", "storage", "unlimitedStorage", "debugger"],
+    "permissions": ["tabs", "tabGroups", "sidePanel", "storage", "unlimitedStorage", "debugger", "scripting"],
     "host_permissions": ["<all_urls>"],
     "background": { "service_worker": "background.js", "type": "module" },
     "content_scripts": [
@@ -16,6 +16,12 @@
     ],
     "side_panel": { "default_path": "panel/index.html" },
     "action": { "default_title": "Open Privo — Secure Assistant" },
-    "icons": { "64": "icons/icon64.png", "128": "icons/icon128.png" }
+    "icons": { "64": "icons/icon64.png", "128": "icons/icon128.png" },
+    "web_accessible_resources": [
+        {
+            "resources": ["panel/*", "panel/assets/*", "icons/*"],
+            "matches": ["<all_urls>"]
+        }
+    ]
 }
 
