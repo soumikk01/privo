@@ -699,10 +699,14 @@ kbd {
 	background: var(--surface-2);
 	border-radius: 6px; padding: 5px 8px;
 	overflow-wrap: anywhere;
-	display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 	cursor: pointer;
 }
-.entry-out.open { display: block; -webkit-line-clamp: unset; }
+.entry-out.open { display: block; -webkit-line-clamp: unset; line-clamp: unset; }
 .entry.thinking .entry-detail::after {
 	content: '…';
 	animation: blink 1.1s steps(4, jump-none) infinite;
