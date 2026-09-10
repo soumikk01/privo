@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "Privo",
+    "name": "Privo — Secure Assistant",
     "version": "0.1.0",
     "description": "Control web pages with natural language: multi-tab automation plus screenshot capture. Internal PRIVO AI tool.",
     "minimum_chrome_version": "116",
@@ -15,7 +15,7 @@
         }
     ],
     "side_panel": { "default_path": "panel/index.html" },
-    "action": { "default_title": "Open Privo" },
+    "action": { "default_title": "Open Privo — Secure Assistant" },
     "icons": { "64": "icons/icon64.png", "128": "icons/icon128.png" }
 }
 
