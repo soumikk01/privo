@@ -305,10 +305,41 @@
 				</div>
 			</section>
 
-			<!-- progress -->
-			<section class="section hidden" id="activity-section">
-				<div class="section-head"><h2>Steps</h2></div>
-				<div class="feed-wrap"><div id="feed" class="feed" aria-live="polite"></div></div>
+			<!-- progress / Steps task list (beui.dev todo-list inspired) -->
+			<section class="section hidden todo-list-section" id="activity-section">
+				<div class="todo-list-card" id="todo-list-card">
+					<button
+						id="steps-toggle-btn"
+						type="button"
+						class="todo-list-header"
+						aria-expanded="true"
+						aria-controls="steps-disclosure"
+					>
+						<span class="todo-header-icon-wrap" id="todo-header-icon-wrap">
+							<svg class="todo-header-icon todo-header-icon--todo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<rect x="3" y="5" width="6" height="6" rx="1.5"/>
+								<path d="m3 17 2 2 4-4"/>
+								<path d="M13 6h8"/>
+								<path d="M13 12h8"/>
+								<path d="M13 18h8"/>
+							</svg>
+							<svg class="todo-header-icon todo-header-icon--complete hidden" viewBox="0 0 24 24">
+								<circle cx="12" cy="12" r="9" fill="hsl(145, 65%, 45%)" />
+								<path d="M7.5 12.25 10.5 15.25 16.75 8.75" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+							</svg>
+						</span>
+						<h3 class="todo-header-title">Steps</h3>
+						<span id="steps-counter" class="todo-header-count">0/0</span>
+						<span class="todo-header-chevron">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="m6 9 6 6 6-6"/>
+							</svg>
+						</span>
+					</button>
+					<div id="steps-disclosure" class="todo-list-disclosure" role="region" aria-labelledby="steps-toggle-btn">
+						<div class="feed-wrap"><div id="feed" class="feed" aria-live="polite"></div></div>
+					</div>
+				</div>
 			</section>
 
 			<!-- ── Privacy panel — "What Leaves My Device" ── -->
@@ -342,6 +373,11 @@
 
 			<!-- footer -->
 			<footer class="foot">
+				<span class="foot-tagline" id="foot-tagline" title="Privo · Think freely. Browse privately." aria-label="✦ Think freely. Browse privately.">
+					<span class="tagline-sparkle">✦</span>
+					<span class="tagline-text" id="tagline-text"></span>
+					<span class="tagline-cursor" id="tagline-cursor">|</span>
+				</span>
 				<span class="foot-right">
 					<span id="backend-dot" class="backend-dot" title="backend status"></span>
 					<a id="validator-link" class="linklike" href="#" target="_blank" rel="noopener">Validator</a>

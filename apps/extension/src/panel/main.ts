@@ -70,6 +70,45 @@ const resultRetryBtn = $<HTMLButtonElement>('result-retry')
 
 const activitySection = $('activity-section')
 const feedEl = $('feed')
+const todoListCard = $('todo-list-card')
+const stepsToggleBtn = $<HTMLButtonElement>('steps-toggle-btn')
+const stepsCounter = $('steps-counter')
+const todoHeaderIconTodo = document.querySelector<SVGElement>('.todo-header-icon--todo')
+const todoHeaderIconComplete = document.querySelector<SVGElement>('.todo-header-icon--complete')
+
+let totalSteps = 0
+let completedSteps = 0
+
+stepsToggleBtn?.addEventListener('click', () => {
+	const isCollapsed = todoListCard?.classList.toggle('is-collapsed')
+	stepsToggleBtn.setAttribute('aria-expanded', String(!isCollapsed))
+})
+
+function updateStepsCounter(): void {
+	if (stepsCounter) {
+		stepsCounter.textContent = `${completedSteps}/${totalSteps}`
+		const allDone = totalSteps > 0 && completedSteps === totalSteps
+		stepsCounter.classList.toggle('is-completed', allDone)
+		if (todoHeaderIconTodo && todoHeaderIconComplete) {
+			if (allDone) {
+				todoHeaderIconTodo.classList.add('hidden')
+				todoHeaderIconComplete.classList.remove('hidden')
+			} else {
+				todoHeaderIconTodo.classList.remove('hidden')
+				todoHeaderIconComplete.classList.add('hidden')
+			}
+		}
+	}
+}
+
+function resetStepsPlan(): void {
+	totalSteps = 0
+	completedSteps = 0
+	feedEl.replaceChildren()
+	todoListCard?.classList.remove('is-collapsed')
+	stepsToggleBtn?.setAttribute('aria-expanded', 'true')
+	updateStepsCounter()
+}
 const shotsEl = $('shots')
 const shotsCountEl = $('shots-count')
 const shotsClearBtn = $('shots-clear')
@@ -1291,7 +1330,7 @@ async function runTask() {
 	// Allow the morph & arrow launch animation to play visibly before stage switch
 	await new Promise((r) => setTimeout(r, 260))
 
-	feedEl.replaceChildren()
+	resetStepsPlan()
 	activitySection.classList.remove('hidden')
 	showStage('now')
 	startRunMeta()
@@ -1316,6 +1355,10 @@ async function runTask() {
 }
 
 async function showAgentResult(success: boolean, text: string) {
+	if (success && totalSteps > 0) {
+		completedSteps = totalSteps
+		updateStepsCounter()
+	}
 	resultEl.classList.toggle('is-fail', !success)
 	resultTitleEl.textContent = success ? '✔ Task completed' : '✕ Task failed'
 	resultBodyEl.innerHTML = renderMarkdown(text)
@@ -1353,7 +1396,7 @@ async function resetToComposer() {
 	agent = null
 	askResolve = null
 	stopRunMeta()
-	feedEl.replaceChildren()
+	resetStepsPlan()
 	activitySection.classList.add('hidden')
 	showStage('composer')
 	setStatus('idle')
@@ -1525,23 +1568,91 @@ const TOOL_META: Record<string, { icon: string; label: string; now: string }> = 
 let thinkingEl: HTMLElement | null = null
 let lastExecEl: HTMLElement | null = null
 
+const STATUS_SVGS = {
+	inProgress:
+		'<svg class="step-status-icon step-status-icon--progress" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" opacity="0.25"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="24 60" class="step-spin-ring"/></svg>',
+	completed:
+		'<svg class="step-status-icon step-status-icon--ok" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="hsla(145, 65%, 45%, 0.12)" stroke="hsl(145, 65%, 45%)" stroke-width="1.5"/><path d="M7.5 12.25 10.5 15.25 16.75 8.75" stroke="hsl(145, 65%, 45%)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="step-check-path"/></svg>',
+	error:
+		'<svg class="step-status-icon step-status-icon--err" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" fill="hsla(4, 80%, 55%, 0.12)" stroke="hsl(4, 80%, 55%)" stroke-width="1.5"/><path d="M8.5 8.5 15.5 15.5M15.5 8.5 8.5 15.5" stroke="hsl(4, 80%, 55%)" stroke-width="2" stroke-linecap="round"/></svg>',
+	pending:
+		'<svg class="step-status-icon step-status-icon--pending" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3"/></svg>',
+}
+
 function makeEntry(icon: string, title: string, cls = ''): HTMLElement {
+	const isThinking = cls.includes('thinking')
+	if (!isThinking) {
+		totalSteps++
+	}
+
 	const entry = document.createElement('div')
 	entry.className = `entry ${cls}`
-	const iconWrap = document.createElement('span')
-	iconWrap.className = 'entry-icon'
-	iconWrap.innerHTML = ICONS[icon] ?? ICONS.bolt
+
+	// 1. Morphing status mark (beui style)
+	const statusWrap = document.createElement('span')
+	statusWrap.className = 'step-status-wrap'
+	if (isThinking) {
+		statusWrap.innerHTML = STATUS_SVGS.pending
+	} else if (cls.includes('is-ok')) {
+		statusWrap.innerHTML = STATUS_SVGS.completed
+	} else if (cls.includes('is-err')) {
+		statusWrap.innerHTML = STATUS_SVGS.error
+	} else {
+		statusWrap.innerHTML = STATUS_SVGS.inProgress
+	}
+
+	// 2. Existing action tool icon (user: "but aslo old exgist icon create also add")
+	const toolBadge = document.createElement('span')
+	toolBadge.className = 'step-tool-badge'
+	toolBadge.innerHTML = ICONS[icon] ?? ICONS.bolt
+
+	// 3. Body with title and morphing strike-through line
 	const body = document.createElement('div')
 	body.className = 'entry-body'
+
 	const titleRow = document.createElement('div')
 	titleRow.className = 'entry-title'
-	const b = document.createElement('b')
-	b.textContent = title
-	titleRow.appendChild(b)
+
+	const titleWrap = document.createElement('span')
+	titleWrap.className = 'step-title-wrap'
+
+	const titleText = document.createElement('span')
+	titleText.className = 'step-title-text'
+	titleText.textContent = title
+
+	const strikeLine = document.createElement('span')
+	strikeLine.className = 'step-strike-line'
+
+	titleWrap.append(titleText, strikeLine)
+	titleRow.appendChild(titleWrap)
+
+	// 4. Compact metadata/detail on the right
+	const meta = document.createElement('span')
+	meta.className = 'step-meta'
+	if (isThinking) {
+		meta.textContent = 'Analyzing'
+		meta.classList.add('is-pending')
+	} else if (cls.includes('is-ok')) {
+		meta.textContent = 'Done'
+		meta.classList.add('is-ok')
+	} else if (cls.includes('is-err')) {
+		meta.textContent = 'Failed'
+		meta.classList.add('is-err')
+	} else {
+		meta.textContent = 'Active'
+		meta.classList.add('is-active')
+	}
+	titleRow.appendChild(meta)
+
 	body.appendChild(titleRow)
-	entry.append(iconWrap, body)
+	entry.append(statusWrap, toolBadge, body)
+
 	feedEl.appendChild(entry)
 	feedEl.scrollTop = feedEl.scrollHeight
+
+	if (!isThinking) {
+		updateStepsCounter()
+	}
 	return entry
 }
 
@@ -1554,12 +1665,14 @@ function note(text: string, kind: 'ok' | 'err' | '' = '') {
 	activitySection.classList.remove('hidden')
 	clearThinking()
 	makeEntry(kind === 'ok' ? 'check' : kind === 'err' ? 'alert' : 'sparkle', text, kind ? `is-${kind}` : '')
+	if (kind) {
+		completedSteps++
+		updateStepsCounter()
+	}
 }
 
 function onActivity(a: AgentActivity) {
 	if (a.type === 'thinking') {
-		// While thinking we don't yet know if this will be a task or question.
-		// Show quiet shimmer in question mode; if already upgraded, show scramble.
 		if (runMode === 'question') {
 			setNowAction('Analyzing…', 'shimmer')
 		} else {
@@ -1572,20 +1685,40 @@ function onActivity(a: AgentActivity) {
 		updateRunMeta()
 		const meta = TOOL_META[a.tool] ?? { icon: 'bolt', label: a.tool.replaceAll('_', ' '), now: 'Working…' }
 
-		// Auto-detect: if the agent is executing a real action tool (not just 'done'),
-		// upgrade from question → task mode right now, mid-run.
 		if (!QUESTION_TOOLS.has(a.tool)) {
 			_upgradeToTaskMode()
 		}
 
-		// Task mode → cascade; question mode (e.g. only 'done' fired) → swap
 		setNowAction(meta.now, runMode === 'task' ? 'cascade' : 'swap')
 		lastExecEl = makeEntry(meta.icon, meta.label, a.tool === 'ask_user' ? 'is-warn' : '')
 		lastExecEl.dataset.tool = a.tool
 	} else if (a.type === 'executed') {
 		clearThinking()
 		if (lastExecEl?.dataset.tool === a.tool) {
-			lastExecEl.classList.add(a.output.startsWith('❌') ? 'is-err' : 'is-ok')
+			const isErr = a.output.startsWith('❌')
+			lastExecEl.classList.remove('is-warn')
+			lastExecEl.classList.add(isErr ? 'is-err' : 'is-ok')
+
+			const statusWrap = lastExecEl.querySelector('.step-status-wrap')
+			if (statusWrap) {
+				statusWrap.innerHTML = isErr ? STATUS_SVGS.error : STATUS_SVGS.completed
+			}
+
+			const meta = lastExecEl.querySelector('.step-meta')
+			if (meta) {
+				meta.textContent = isErr ? 'Failed' : 'Done'
+				meta.className = `step-meta ${isErr ? 'is-err' : 'is-ok'}`
+			}
+
+			if (isErr && a.output.length > 2) {
+				const out = document.createElement('div')
+				out.className = 'entry-out'
+				out.textContent = a.output
+				lastExecEl.querySelector('.entry-body')?.appendChild(out)
+			}
+
+			completedSteps++
+			updateStepsCounter()
 		}
 		lastExecEl = null
 	} else if (a.type === 'error') {
@@ -1742,4 +1875,61 @@ const _origRunTask = runTask
 // runTask is defined earlier in the file — we hook the clear call into showStage
 const _origShowStageForPrivacy = showStage
 ;(window as any).__privoPrivacyClearOnNewTask = clearPrivacyPanel
+
+// ================================================================
+// Footer Tagline Typing Animation: "✦ Think freely. Browse privately."
+// ================================================================
+
+function initTaglineAnimation(): void {
+	const textEl = document.getElementById('tagline-text')
+	const cursorEl = document.getElementById('tagline-cursor')
+	const footTaglineEl = document.getElementById('foot-tagline')
+	if (!textEl) return
+
+	const fullText = 'Think freely. Browse privately.'
+	textEl.textContent = ''
+	if (cursorEl) {
+		cursorEl.style.opacity = '1'
+		cursorEl.style.transition = 'none'
+	}
+
+	let i = 0
+	let timer: any = null
+
+	function typeChar(): void {
+		if (i < fullText.length) {
+			textEl!.textContent = fullText.slice(0, i + 1)
+			const char = fullText[i]
+			i++
+			const delay = char === '.' ? 140 : char === ' ' ? 60 : 38
+			timer = setTimeout(typeChar, delay)
+		} else {
+			// Finished typing: let cursor blink for 2.5s, then gently fade out
+			setTimeout(() => {
+				if (cursorEl) {
+					cursorEl.style.transition = 'opacity 0.6s ease'
+					cursorEl.style.opacity = '0'
+				}
+			}, 2500)
+		}
+	}
+
+	// Small initial delay so UI paints first
+	timer = setTimeout(typeChar, 250)
+
+	// Allow clicking the tagline to replay the typewriter effect
+	footTaglineEl?.addEventListener('click', () => {
+		if (timer) clearTimeout(timer)
+		textEl.textContent = ''
+		if (cursorEl) {
+			cursorEl.style.opacity = '1'
+			cursorEl.style.transition = 'none'
+		}
+		i = 0
+		timer = setTimeout(typeChar, 80)
+	})
+}
+
+initTaglineAnimation()
+
 

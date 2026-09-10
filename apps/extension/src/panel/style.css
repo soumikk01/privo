@@ -45,8 +45,67 @@
 	}
 }
 
-* { box-sizing: border-box; }
-html { height: 100%; overflow-x: hidden; }
+* {
+	box-sizing: border-box;
+	scrollbar-width: thin;
+	scrollbar-color: var(--line-strong) transparent;
+}
+
+/* Custom sleek scrollbars matching Privo extension theme */
+::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track,
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb,
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+	background: var(--line-strong);
+	border-radius: 10px;
+	transition: background 0.15s ease;
+}
+
+::-webkit-scrollbar-thumb:hover,
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
+	background: var(--ink-3);
+}
+
+::-webkit-scrollbar-thumb:active,
+html::-webkit-scrollbar-thumb:active,
+body::-webkit-scrollbar-thumb:active {
+	background: var(--ink-2);
+}
+
+::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+::-webkit-scrollbar-button,
+html::-webkit-scrollbar-button,
+body::-webkit-scrollbar-button {
+	display: none !important;
+	width: 0 !important;
+	height: 0 !important;
+}
+
+.todo-list-disclosure::-webkit-scrollbar {
+	width: 4px;
+}
+
+html {
+	height: 100%;
+	overflow-x: hidden;
+}
+
 body {
 	margin: 0;
 	min-height: 100%;
@@ -60,6 +119,7 @@ body {
 	-webkit-font-smoothing: antialiased;
 	overflow-x: hidden;
 }
+
 /* sections must never squash into each other — the panel scrolls instead */
 body > * { flex-shrink: 0; }
 
@@ -650,69 +710,359 @@ kbd {
 }
 .count { color: var(--accent); margin-left: 3px; }
 
-/* ---------- activity feed ---------- */
+/* ---------- activity feed (collapsible todo-list) ---------- */
+
+.todo-list-card {
+	border: 1px solid var(--line-strong);
+	border-radius: 12px;
+	background: var(--surface);
+	overflow: hidden;
+	transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.todo-list-card:hover {
+	border-color: var(--line-strong);
+}
+
+.todo-list-header {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 10px;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	text-align: left;
+	color: var(--ink);
+	outline: none;
+	user-select: none;
+	transition: background 0.15s ease;
+	font: inherit;
+}
+
+.todo-list-header:hover {
+	background: var(--surface-2);
+}
+
+.todo-header-icon-wrap {
+	position: relative;
+	width: 18px;
+	height: 18px;
+	display: grid;
+	place-items: center;
+	flex-shrink: 0;
+}
+
+.todo-header-icon {
+	width: 15px;
+	height: 15px;
+	color: var(--ink-2);
+}
+
+.todo-header-icon--complete {
+	width: 16px;
+	height: 16px;
+}
+
+.todo-header-title {
+	flex: 1;
+	min-width: 0;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	color: var(--ink);
+	margin: 0;
+}
+
+.todo-header-count {
+	font-size: 11px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--ink-3);
+	padding: 1px 6px;
+	border-radius: 100px;
+	background: var(--surface-2);
+	border: 1px solid var(--line);
+	transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.todo-header-count.is-completed {
+	color: var(--good);
+	background: var(--good-soft);
+	border-color: var(--good);
+}
+
+.todo-header-chevron {
+	width: 14px;
+	height: 14px;
+	display: grid;
+	place-items: center;
+	color: var(--ink-3);
+	transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+}
+
+.todo-header-chevron svg {
+	width: 13px;
+	height: 13px;
+}
+
+.todo-list-header:hover .todo-header-chevron {
+	color: var(--ink);
+}
+
+.todo-list-card.is-collapsed .todo-header-chevron {
+	transform: rotate(-90deg);
+}
+
+.todo-list-disclosure {
+	max-height: 260px;
+	overflow-y: auto;
+	transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, padding 0.28s ease;
+	border-top: 1px solid var(--line);
+	padding: 4px 6px 8px;
+}
+
+.todo-list-card.is-collapsed .todo-list-disclosure {
+	max-height: 0;
+	opacity: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+	border-top-color: transparent;
+	overflow: hidden;
+	pointer-events: none;
+}
 
 .feed-wrap { position: relative; }
 .feed {
-	max-height: 264px; overflow-y: auto;
-	display: flex; flex-direction: column;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 	padding: 2px 0;
 }
 .feed:empty::before {
 	content: "The agent's steps will appear here as it works.";
-	font-size: 12px; color: var(--ink-3);
-	padding: 6px 2px;
+	font-size: 11.5px;
+	color: var(--ink-3);
+	padding: 8px 4px;
+	display: block;
 }
-.entry { display: flex; gap: 10px; position: relative; padding: 5px 2px; }
-.entry::before {
-	/* timeline rail */
-	content: ''; position: absolute;
-	left: 12px; top: 28px; bottom: -4px;
-	width: 1.5px; background: var(--line);
+
+/* Step entry row */
+.entry {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	position: relative;
+	padding: 5px 6px;
+	border-radius: 8px;
+	transition: background 0.15s ease;
+	animation: step-appear 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.entry:last-child::before { display: none; }
-.entry-icon {
-	flex: none;
-	width: 24px; height: 24px;
-	display: grid; place-items: center;
-	border-radius: 50%;
-	background: var(--surface); border: 1px solid var(--line-strong);
+
+@keyframes step-appear {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.entry:hover {
+	background: var(--surface-2);
+}
+
+/* Morphing status icon (18px) */
+.step-status-wrap {
+	width: 18px;
+	height: 18px;
+	flex-shrink: 0;
+	display: grid;
+	place-items: center;
+}
+
+.step-status-icon {
+	width: 16px;
+	height: 16px;
+	display: block;
+}
+
+.step-status-icon--progress {
+	color: var(--accent);
+}
+
+.step-spin-ring {
+	transform-origin: 12px 12px;
+	animation: step-spin 1s linear infinite;
+}
+
+@keyframes step-spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+.step-check-path {
+	stroke-dasharray: 16;
+	stroke-dashoffset: 16;
+	animation: step-check-draw 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes step-check-draw {
+	to { stroke-dashoffset: 0; }
+}
+
+/* Tool badge with old existing icon (22px) */
+.step-tool-badge {
+	width: 22px;
+	height: 22px;
+	flex-shrink: 0;
+	display: grid;
+	place-items: center;
+	border-radius: 6px;
+	background: var(--surface);
+	border: 1px solid var(--line-strong);
 	color: var(--ink-2);
-	z-index: 1;
+	transition: border-color 0.2s, background 0.2s, color 0.2s;
 }
-.entry-icon svg { width: 13px; height: 13px; }
-.entry.is-ok .entry-icon { border-color: var(--good); color: var(--good); }
-.entry.is-err .entry-icon { border-color: var(--bad); color: var(--bad); background: var(--bad-soft); }
-.entry.is-warn .entry-icon { border-color: var(--warn); color: var(--warn); }
-.entry-body { flex: 1; min-width: 0; padding-top: 2px; }
-.entry-title { display: flex; align-items: baseline; gap: 8px; }
-.entry-title b { font-size: 12.5px; font-weight: 600; }
-.dur {
-	font-size: 10px; color: var(--ink-3);
+
+.step-tool-badge svg {
+	width: 12px;
+	height: 12px;
+}
+
+.entry.is-ok .step-tool-badge {
+	border-color: hsla(145, 65%, 45%, 0.35);
+	background: var(--good-soft);
+	color: var(--good);
+}
+
+.entry.is-err .step-tool-badge {
+	border-color: hsla(4, 80%, 55%, 0.35);
+	background: var(--bad-soft);
+	color: var(--bad);
+}
+
+.entry.is-warn .step-tool-badge {
+	border-color: hsla(45, 90%, 50%, 0.35);
+	background: var(--warn-soft);
+	color: var(--warn);
+}
+
+/* Body & Title */
+.entry-body {
+	flex: 1;
+	min-width: 0;
+}
+
+.entry-title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+}
+
+.step-title-wrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	max-width: calc(100% - 60px);
+}
+
+.step-title-text {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--ink);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	transition: color 0.25s ease;
+}
+
+.step-strike-line {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	height: 1px;
+	background: currentColor;
+	transform-origin: left center;
+	transform: scaleX(0);
+	opacity: 0;
+	transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+	pointer-events: none;
+}
+
+.entry.is-ok .step-title-text {
+	color: var(--ink-3);
+}
+
+.entry.is-ok .step-strike-line {
+	transform: scaleX(1);
+	opacity: 0.65;
+	color: var(--ink-3);
+}
+
+.step-meta {
+	flex-shrink: 0;
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	padding: 1px 5px;
+	border-radius: 4px;
+	color: var(--ink-3);
+	background: var(--surface-2);
+	border: 1px solid var(--line);
 	font-variant-numeric: tabular-nums;
-	margin-left: auto; flex: none;
+	transition: color 0.2s, background 0.2s, border-color 0.2s;
 }
-.entry-detail { font-size: 11.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+
+.step-meta.is-ok {
+	color: var(--good);
+	background: var(--good-soft);
+	border-color: hsla(145, 65%, 45%, 0.2);
+}
+
+.step-meta.is-err {
+	color: var(--bad);
+	background: var(--bad-soft);
+	border-color: hsla(4, 80%, 55%, 0.2);
+}
+
+.step-meta.is-active {
+	color: var(--accent);
+	background: var(--accent-soft);
+	border-color: hsla(210, 90%, 60%, 0.2);
+}
+
+.step-meta.is-pending {
+	color: var(--ink-3);
+}
+
 .entry-out {
 	margin-top: 3px;
-	font-size: 11.5px; color: var(--ink-2);
-	background: var(--surface-2);
-	border-radius: 6px; padding: 5px 8px;
+	font-size: 11px;
+	color: var(--bad);
+	background: var(--bad-soft);
+	border-radius: 6px;
+	padding: 4px 6px;
 	overflow-wrap: anywhere;
-	display: -webkit-box;
-	-webkit-line-clamp: 2;
-	line-clamp: 2;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-	cursor: pointer;
 }
-.entry-out.open { display: block; -webkit-line-clamp: unset; line-clamp: unset; }
-.entry.thinking .entry-detail::after {
+
+/* Thinking state */
+.entry.thinking {
+	opacity: 0.75;
+}
+
+.entry.thinking .step-title-text::after {
 	content: '…';
 	animation: blink 1.1s steps(4, jump-none) infinite;
 }
+
 @keyframes blink { 50% { opacity: 0.2; } }
-.entry.is-err .entry-detail { color: var(--bad); }
 
 /* ---------- screenshots ---------- */
 
@@ -741,11 +1091,82 @@ kbd {
 
 .foot {
 	margin-top: auto;
-	display: flex; justify-content: flex-end; align-items: center;
-	padding-top: 8px; border-top: 1px solid var(--line);
-	font-size: 10.5px; color: var(--ink-3);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding-top: 10px;
+	border-top: 1px solid var(--line);
+	font-size: 11px;
+	color: var(--ink-3);
 	gap: 8px;
 	flex-wrap: wrap;
+}
+
+/* Tagline with live typewriter effect */
+.foot-tagline {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--ink-2);
+	letter-spacing: -0.01em;
+	user-select: none;
+	cursor: pointer;
+	min-height: 18px;
+	transition: opacity 0.2s ease;
+}
+
+.foot-tagline:hover {
+	opacity: 0.9;
+}
+
+.tagline-sparkle {
+	color: var(--accent);
+	font-size: 11px;
+	line-height: 1;
+	display: inline-block;
+	animation: sparkle-glow 3.2s ease-in-out infinite;
+	transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.foot-tagline:hover .tagline-sparkle {
+	transform: scale(1.3) rotate(20deg);
+}
+
+@keyframes sparkle-glow {
+	0%, 100% {
+		opacity: 0.85;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1.15);
+		filter: drop-shadow(0 0 3px var(--accent));
+	}
+}
+
+.tagline-text {
+	color: var(--ink-2);
+	white-space: nowrap;
+}
+
+.tagline-cursor {
+	display: inline-block;
+	font-weight: 300;
+	color: var(--accent);
+	margin-left: 1px;
+	animation: tagline-blink 0.75s infinite;
+	line-height: 1;
+}
+
+@keyframes tagline-blink {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0;
+	}
 }
 .model { font-family: ui-monospace, monospace; }
 .linklike {
