@@ -64,7 +64,9 @@ body > * { flex-shrink: 0; }
 
 /* ---------- header ---------- */
 
-.header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.header-actions { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.brand { display: flex; flex-direction: column; }
 .eyebrow {
 	margin: 0 0 2px;
 	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -72,7 +74,25 @@ body > * { flex-shrink: 0; }
 	letter-spacing: 0.08em; text-transform: uppercase;
 	color: var(--accent);
 }
-h1 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
+h1 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.25; }
+.brand-sub {
+	margin: 2px 0 0;
+	font-size: 11px;
+	color: var(--ink-2);
+	font-weight: 500;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+.brand-sub::before {
+	content: '';
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: var(--good);
+	display: inline-block;
+	flex-shrink: 0;
+}
 
 .status {
 	display: inline-flex; align-items: center; gap: 6px;

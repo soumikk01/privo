@@ -221,7 +221,7 @@ setInterval(() => void pollBackend(), 15000)
 // ---------- agent instructions ----------
 
 const FLOW_INSTRUCTIONS = `
-You are PRIVO Verified Capture: you complete web tasks INCLUDING logins, pausing for the user whenever their input is needed.
+You are PRIVO Secure Browser Assistant: you complete web tasks with privacy-first assistance and verified capture, pausing for the user whenever their input is needed.
 
 RULES FOR USER INPUT (critical):
 - Whenever the task needs something only the user knows (email, username, OTP code, verification code, a choice between options), PAUSE and call ask_user with ONE short, specific question. Continue with the answer.
