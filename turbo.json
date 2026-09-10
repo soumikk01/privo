@@ -6,11 +6,8 @@
       "persistent": true
     },
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [
-        "dist/**",
-        ".plasmo/**"
-      ]
+  "dependsOn": ["^build"],
+  "outputs": ["dist/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
