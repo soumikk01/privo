@@ -55,6 +55,271 @@ const backendDot = $('backend-dot')
 
 ;($('validator-link') as HTMLAnchorElement).href = `${BACKEND_URL}/validate`
 
+// ---------- sidebar + drawer element refs ----------
+
+const sidebarRecentBtn = $<HTMLButtonElement>('sidebar-recent')
+const sidebarSettingsBtn = $<HTMLButtonElement>('sidebar-settings')
+const drawerBackdrop = $('drawer-backdrop')
+const drawerEl = $('drawer')
+const drawerTitleEl = $('drawer-title')
+const drawerCloseBtn = $('drawer-close')
+const recentPanel = $('recent-panel')
+const settingsPanel = $('settings-panel')
+const recentEmptyEl = $('recent-empty')
+const recentListEl = $('recent-list')
+const maxStepsInput = $<HTMLInputElement>('setting-maxsteps')
+const maxStepsVal = $('setting-maxsteps-val')
+const stepDelayInput = $<HTMLInputElement>('setting-stepdelay')
+const stepDelayVal = $('setting-stepdelay-val')
+const settingsSavedEl = $('settings-saved')
+const settingsClearHistoryBtn = $<HTMLButtonElement>('settings-clear-history')
+
+// ================================================================
+// IndexedDB — Recent activities
+// ================================================================
+
+interface ActivityRecord {
+	id: string
+	taskText: string
+	url: string
+	status: 'ok' | 'err' | 'stopped'
+	stepCount: number
+	timestamp: number
+}
+
+const DB_NAME = 'privo-history'
+const DB_STORE = 'activities'
+const DB_VERSION = 1
+
+function openHistoryDB(): Promise<IDBDatabase> {
+	return new Promise((resolve, reject) => {
+		const req = indexedDB.open(DB_NAME, DB_VERSION)
+		req.onupgradeneeded = () => {
+			const db = req.result
+			if (!db.objectStoreNames.contains(DB_STORE)) {
+				const store = db.createObjectStore(DB_STORE, { keyPath: 'id' })
+				store.createIndex('timestamp', 'timestamp')
+			}
+		}
+		req.onsuccess = () => resolve(req.result)
+		req.onerror = () => reject(req.error)
+	})
+}
+
+async function saveActivity(record: Omit<ActivityRecord, 'id'>) {
+	try {
+		const db = await openHistoryDB()
+		const tx = db.transaction(DB_STORE, 'readwrite')
+		const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+		tx.objectStore(DB_STORE).put({ id, ...record })
+		tx.oncomplete = () => db.close()
+	} catch (e) {
+		console.warn('[PRIVO] Failed to save activity', e)
+	}
+}
+
+async function loadActivities(limit = 40): Promise<ActivityRecord[]> {
+	try {
+		const db = await openHistoryDB()
+		return new Promise((resolve, reject) => {
+			const tx = db.transaction(DB_STORE, 'readonly')
+			const index = tx.objectStore(DB_STORE).index('timestamp')
+			const results: ActivityRecord[] = []
+			const req = index.openCursor(null, 'prev')
+			req.onsuccess = () => {
+				const cursor = req.result
+				if (cursor && results.length < limit) {
+					results.push(cursor.value as ActivityRecord)
+					cursor.continue()
+				} else {
+					db.close()
+					resolve(results)
+				}
+			}
+			req.onerror = () => { db.close(); reject(req.error) }
+		})
+	} catch {
+		return []
+	}
+}
+
+async function clearAllActivities() {
+	try {
+		const db = await openHistoryDB()
+		const tx = db.transaction(DB_STORE, 'readwrite')
+		tx.objectStore(DB_STORE).clear()
+		tx.oncomplete = () => db.close()
+	} catch (e) {
+		console.warn('[PRIVO] Failed to clear history', e)
+	}
+}
+
+// ================================================================
+// Settings storage (chrome.storage.local)
+// ================================================================
+
+interface PrivoSettings {
+	maxSteps: number
+	stepDelay: number
+}
+
+const DEFAULT_SETTINGS: PrivoSettings = { maxSteps: 40, stepDelay: 0 }
+let _settings: PrivoSettings = { ...DEFAULT_SETTINGS }
+
+async function loadSettings() {
+	try {
+		const stored = (await chrome.storage.local.get('privo-settings')) as { 'privo-settings'?: PrivoSettings }
+		if (stored['privo-settings']) _settings = { ...DEFAULT_SETTINGS, ...stored['privo-settings'] }
+	} catch { /* ignore */ }
+	// Apply to UI
+	maxStepsInput.value = String(_settings.maxSteps)
+	maxStepsVal.textContent = String(_settings.maxSteps)
+	stepDelayInput.value = String(_settings.stepDelay)
+	stepDelayVal.textContent = _settings.stepDelay === 0 ? '0 ms' : `${_settings.stepDelay} ms`
+}
+
+async function saveSettings() {
+	_settings.maxSteps = Number(maxStepsInput.value)
+	_settings.stepDelay = Number(stepDelayInput.value)
+	try {
+		await chrome.storage.local.set({ 'privo-settings': _settings })
+	} catch { /* ignore */ }
+}
+
+void loadSettings()
+
+// ================================================================
+// Sidebar / Drawer UI
+// ================================================================
+
+type DrawerPanel = 'recent' | 'settings'
+let _activeDrawer: DrawerPanel | null = null
+
+function openDrawer(panel: DrawerPanel) {
+	_activeDrawer = panel
+	drawerTitleEl.textContent = panel === 'recent' ? 'Recent Activity' : 'Settings'
+	recentPanel.classList.toggle('hidden', panel !== 'recent')
+	settingsPanel.classList.toggle('hidden', panel !== 'settings')
+	drawerEl.classList.add('open')
+	drawerEl.setAttribute('aria-hidden', 'false')
+	drawerBackdrop.classList.remove('hidden')
+	sidebarRecentBtn.classList.toggle('active', panel === 'recent')
+	sidebarSettingsBtn.classList.toggle('active', panel === 'settings')
+	if (panel === 'recent') void renderRecentList()
+}
+
+function closeDrawer() {
+	_activeDrawer = null
+	drawerEl.classList.remove('open')
+	drawerEl.setAttribute('aria-hidden', 'true')
+	drawerBackdrop.classList.add('hidden')
+	sidebarRecentBtn.classList.remove('active')
+	sidebarSettingsBtn.classList.remove('active')
+}
+
+sidebarRecentBtn.addEventListener('click', () => {
+	if (_activeDrawer === 'recent') { closeDrawer(); return }
+	openDrawer('recent')
+})
+sidebarSettingsBtn.addEventListener('click', () => {
+	if (_activeDrawer === 'settings') { closeDrawer(); return }
+	openDrawer('settings')
+})
+drawerCloseBtn.addEventListener('click', closeDrawer)
+drawerBackdrop.addEventListener('click', closeDrawer)
+
+// Keyboard: Escape closes drawer
+document.addEventListener('keydown', (e) => {
+	if (e.key === 'Escape' && _activeDrawer) closeDrawer()
+})
+
+// ── Render recent list ──
+function formatRelativeTime(ts: number): string {
+	const diff = Date.now() - ts
+	const m = Math.floor(diff / 60000)
+	if (m < 1) return 'Just now'
+	if (m < 60) return `${m}m ago`
+	const h = Math.floor(m / 60)
+	if (h < 24) return `${h}h ago`
+	return `${Math.floor(h / 24)}d ago`
+}
+
+function truncateTask(text: string, max = 60): string {
+	return text.length > max ? text.slice(0, max).trimEnd() + '…' : text
+}
+
+async function renderRecentList() {
+	const items = await loadActivities()
+	if (items.length === 0) {
+		recentEmptyEl.classList.remove('hidden')
+		recentListEl.classList.add('hidden')
+		return
+	}
+	recentEmptyEl.classList.add('hidden')
+	recentListEl.classList.remove('hidden')
+	recentListEl.replaceChildren(
+		...items.map((item) => {
+			const li = document.createElement('li')
+			li.className = 'recent-item'
+			const statusClass = item.status === 'ok' ? 'ok' : item.status === 'err' ? 'err' : 'stopped'
+			const statusText = item.status === 'ok' ? 'Done' : item.status === 'err' ? 'Failed' : 'Stopped'
+			const hostname = (() => { try { return new URL(item.url).hostname.replace(/^www\./, '') } catch { return item.url } })()
+			li.innerHTML = `
+				<div class="recent-item-head">
+					<span class="recent-item-task">${truncateTask(item.taskText)}</span>
+					<span class="recent-item-status ${statusClass}">${statusText}</span>
+				</div>
+				<div class="recent-item-meta">
+					<span>${formatRelativeTime(item.timestamp)}</span>
+					<span class="recent-item-sep">·</span>
+					<span class="recent-item-url" title="${item.url}">${hostname}</span>
+					<span class="recent-item-sep">·</span>
+					<span>${item.stepCount} step${item.stepCount !== 1 ? 's' : ''}</span>
+				</div>
+			`
+			return li
+		})
+	)
+}
+
+// ── Settings sliders ──
+maxStepsInput.addEventListener('input', () => {
+	maxStepsVal.textContent = maxStepsInput.value
+	void saveSettings()
+	showSettingsSaved()
+})
+stepDelayInput.addEventListener('input', () => {
+	const v = Number(stepDelayInput.value)
+	stepDelayVal.textContent = v === 0 ? '0 ms' : `${v} ms`
+	void saveSettings()
+	showSettingsSaved()
+})
+
+let _savedTimeout: number | undefined
+function showSettingsSaved() {
+	settingsSavedEl.textContent = '✓ Saved'
+	clearTimeout(_savedTimeout)
+	_savedTimeout = window.setTimeout(() => { settingsSavedEl.textContent = '' }, 1800)
+}
+
+// ── Clear history button ──
+settingsClearHistoryBtn.addEventListener('click', async () => {
+	settingsClearHistoryBtn.textContent = 'Clearing…'
+	settingsClearHistoryBtn.setAttribute('disabled', '')
+	await clearAllActivities()
+	settingsClearHistoryBtn.textContent = 'All history cleared'
+	setTimeout(() => {
+		settingsClearHistoryBtn.textContent = 'Clear all history'
+		settingsClearHistoryBtn.removeAttribute('disabled')
+	}, 1800)
+})
+
+$('settings-github-link')?.addEventListener('click', (e) => {
+	e.preventDefault()
+	chrome.tabs.create({ url: 'https://github.com/soumikk01/privo' })
+})
+
+
 // ---------- the stage: one card at a time ----------
 
 type Stage = 'composer' | 'now' | 'ask' | 'result' | 'login-sorry'
@@ -540,8 +805,8 @@ async function runTask() {
 	agent = new MultiPageAgent({
 		baseURL: DEFAULT_LLM_CONFIG.baseURL,
 		model: DEFAULT_LLM_CONFIG.model,
-		maxSteps: 40,  // stay within model context windows; increase only if history truncation is implemented
-		stepDelay: 0,
+		maxSteps: _settings.maxSteps,
+		stepDelay: _settings.stepDelay,
 		disableNamedToolChoice: DEFAULT_LLM_CONFIG.disableNamedToolChoice,
 		transformRequestBody: DEFAULT_LLM_CONFIG.transformRequestBody,
 		customFetch: llmFetch,
@@ -612,6 +877,16 @@ async function showAgentResult(success: boolean, text: string) {
 		resultImgEl.src = latest.dataUrl
 		resultDownloadBtn.onclick = () => downloadCapture(latest)
 	}
+	// Save to recent history
+	let currentUrl = ''
+	try { const [tab] = await chrome.tabs.query({ active: true, currentWindow: true }); currentUrl = tab?.url ?? '' } catch { /* ignore */ }
+	void saveActivity({
+		taskText: taskEl.value.trim() || runningTaskEl.textContent?.trim() || '—',
+		url: currentUrl,
+		status: success ? 'ok' : agent?.status === 'stopped' ? 'stopped' : 'err',
+		stepCount,
+		timestamp: Date.now(),
+	})
 	showStage('result')
 }
 
