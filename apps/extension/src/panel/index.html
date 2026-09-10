@@ -49,7 +49,10 @@
 					</svg>
 				</span>
 				<div class="now-main">
-					<p id="now-action">Starting…</p>
+					<div class="now-action-row">
+						<span class="now-indicator" aria-hidden="true"></span>
+						<p id="now-action">Starting…</p>
+					</div>
 					<p id="now-meta" class="now-meta">step 0 · 0:00</p>
 				</div>
 				<button id="stop" class="btn btn-danger">Stop</button>
@@ -64,8 +67,9 @@
 		<section id="askuser" class="card ask hidden">
 			<p class="ask-label">Your turn — the agent is waiting</p>
 			<p id="askuser-q" class="ask-q"></p>
+			<div id="askuser-options" class="ask-options"></div>
 			<div class="ask-row">
-				<input id="askuser-a" type="text" placeholder="Type your answer…" autocomplete="off" />
+				<input id="askuser-a" type="text" placeholder="Or type a custom answer…" autocomplete="off" />
 				<button id="askuser-send" class="btn btn-primary">Send</button>
 			</div>
 			<button id="askuser-done" class="btn btn-secondary ask-done">Done</button>

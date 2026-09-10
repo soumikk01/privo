@@ -24,6 +24,7 @@ const runningTaskEl = $('running-task')
 
 const askEl = $('askuser')
 const askQEl = $('askuser-q')
+const askOptionsEl = $('askuser-options')
 const askAEl = $<HTMLInputElement>('askuser-a')
 
 const resultEl = $('result')
@@ -84,6 +85,95 @@ let timerId: number | null = null
 let startedAt = 0
 let stepCount = 0
 
+// ---------- Animation mode: auto-detected from agent behaviour ----------
+//
+// Every run starts in 'question' mode (quiet shimmer).
+// The FIRST time the agent fires a real tool call (anything except 'done'),
+// we automatically upgrade to 'task' mode — full scramble + cascade.
+// This way we never mis-classify: only the agent knows what it's doing.
+//
+//  question mode: shimmer sweep only, dimmer indicator, soft border
+//  task mode:     scramble cycling → cascade per verb → swap on transitions
+
+type RunMode = 'question' | 'task'
+let runMode: RunMode = 'question'
+
+// Tools that are purely informational — keep us in question mode
+const QUESTION_TOOLS = new Set(['done'])
+
+const QUESTION_PHRASES = [
+	'Analyzing…',
+	'Reading the page…',
+	'Checking details…',
+]
+
+const TASK_PHRASES = [
+	'Thinking…',
+	'Reading the page…',
+	'Working through it…',
+	'Forming a plan…',
+]
+
+/** Switch to task mode mid-run and immediately update the UI. */
+function _upgradeToTaskMode() {
+	if (runMode === 'task') return
+	runMode = 'task'
+	nowEl.classList.replace('mode-question', 'mode-task')
+}
+
+let _phraseTimer: number | null = null
+let _phraseIdx = 0
+
+function _clearAnimation() {
+	if (_phraseTimer) { clearInterval(_phraseTimer); _phraseTimer = null }
+	nowActionEl.classList.remove('shimmer', 'cascade', 'swap')
+	nowActionEl.textContent = ''
+}
+
+/** Restart the CSS animation by removing and re-adding the class. */
+function _reflow(el: HTMLElement, cls: string) {
+	el.classList.remove(cls)
+	void el.offsetWidth          // force reflow
+	el.classList.add(cls)
+}
+
+/** Render text as individual letter-spans so each can animate in. */
+function _scrambleTo(text: string) {
+	nowActionEl.classList.remove('shimmer', 'cascade', 'swap')
+	nowActionEl.innerHTML = [...text]
+		.map((ch, i) => `<span class="scramble-char" style="animation-delay:${i * 28}ms">${ch === ' ' ? '&nbsp;' : ch}</span>`)
+		.join('')
+}
+
+/**
+ * Set the #now-action text with one of three animation variants:
+ *  - "shimmer"  → quiet shimmer sweep (question mode)
+ *  - "scramble" → per-letter scramble + cycling phrases (task thinking)
+ *  - "cascade"  → slide-in from below (task action verbs)
+ *  - "swap"     → scale-fade (transitions / question mode actions)
+ */
+function setNowAction(text: string, variant: 'shimmer' | 'cascade' | 'swap' | 'scramble' = 'cascade') {
+	_clearAnimation()
+	if (variant === 'shimmer') {
+		nowActionEl.textContent = text
+		nowActionEl.classList.add('shimmer')
+	} else if (variant === 'scramble') {
+		const phrases = runMode === 'question' ? QUESTION_PHRASES : TASK_PHRASES
+		_phraseIdx = 0
+		_scrambleTo(phrases[0])
+		_phraseTimer = window.setInterval(() => {
+			_phraseIdx = (_phraseIdx + 1) % phrases.length
+			_scrambleTo(phrases[_phraseIdx])
+		}, runMode === 'question' ? 1200 : 1800)
+	} else if (variant === 'swap') {
+		nowActionEl.textContent = text
+		_reflow(nowActionEl, 'swap')
+	} else {
+		nowActionEl.textContent = text
+		_reflow(nowActionEl, 'cascade')
+	}
+}
+
 function startRunMeta() {
 	startedAt = Date.now()
 	stepCount = 0
@@ -138,8 +228,70 @@ SCOPE:
 
 let askResolve: ((answer: string) => void) | null = null
 
+// ---------- Option chip parser ----------
+// Extracts quick-reply choices from the agent's question text.
+// Handles four common formats:
+//   (e.g., A, B, C)        → [A, B, C]
+//   1. A\n2. B\n3. C       → [A, B, C]
+//   - A\n- B\n- C          → [A, B, C]
+//   "choose A, B, or C"    → [A, B, C]
+
+function parseOptions(question: string): string[] {
+	// 1. Parenthesised e.g. list: (e.g., A, B, C, etc.)
+	const egMatch = question.match(/\(e\.?g\.?,?\s*([^)]+)\)/i)
+	if (egMatch) {
+		return egMatch[1]
+			.split(/,|;/)
+			.map(s => s.trim())
+			.filter(s => s && !/^etc\.?$/i.test(s) && s.length < 60)
+	}
+
+	// 2. Numbered list: "1. A\n2. B"
+	const numbered = [...question.matchAll(/^\d+[.)\s]+(.+)$/gm)].map(m => m[1].trim())
+	if (numbered.length >= 2) return numbered.filter(s => s.length < 60)
+
+	// 3. Bullet list: "- A\n- B" or "• A"
+	const bullets = [...question.matchAll(/^[-•*]\s+(.+)$/gm)].map(m => m[1].trim())
+	if (bullets.length >= 2) return bullets.filter(s => s.length < 60)
+
+	// 4. Inline "A, B, or C" near the end of a sentence
+	const orMatch = question.match(/(?:choose|pick|select|between|options?:?)\s+([^.?!]+(?:,\s*or\s+[^.?!]+))/i)
+	if (orMatch) {
+		return orMatch[1]
+			.split(/,|\bor\b/i)
+			.map(s => s.trim())
+			.filter(s => s && s.length < 60)
+	}
+
+	return []
+}
+
+/** Render option chips and wire click→send. */
+function renderOptions(options: string[]) {
+	askOptionsEl.replaceChildren()
+	if (!options.length) return
+
+	options.forEach((opt, i) => {
+		const chip = document.createElement('button')
+		chip.className = 'ask-chip'
+		chip.textContent = opt
+		chip.style.animationDelay = `${i * 55}ms`
+		chip.addEventListener('click', () => {
+			// Mark selected, then send after a brief visual beat
+			document.querySelectorAll('.ask-chip').forEach(c => c.classList.remove('selected'))
+			chip.classList.add('selected')
+			setTimeout(() => askResolve?.(opt), 160)
+		})
+		askOptionsEl.appendChild(chip)
+	})
+}
+
 function askUser(question: string, options?: { signal: AbortSignal }): Promise<string> {
 	askQEl.innerHTML = renderMarkdown(question)
+
+	// Extract and render option chips from the question text
+	renderOptions(parseOptions(question))
+
 	showStage('ask')
 	askAEl.value = ''
 	setStatus('waiting')
@@ -148,7 +300,7 @@ function askUser(question: string, options?: { signal: AbortSignal }): Promise<s
 		askResolve = (answer: string) => {
 			askResolve = null
 			showStage('now')
-			nowActionEl.textContent = 'Continuing…'
+			setNowAction('Continuing…', 'swap')
 			setStatus('running')
 			resolve(answer)
 		}
@@ -192,7 +344,15 @@ async function runTask() {
 	agent.addEventListener('activity', (e) => onActivity((e as CustomEvent<AgentActivity>).detail))
 
 	runningTaskEl.textContent = task
-	nowActionEl.textContent = 'Starting…'
+
+	// Always start in question mode (quiet shimmer).
+	// onActivity will automatically upgrade to task mode if the agent
+	// fires any real tool call (click, type, scroll, etc.).
+	runMode = 'question'
+	nowEl.classList.remove('mode-task')
+	nowEl.classList.add('mode-question')
+	setNowAction('Analyzing…', 'shimmer')
+
 	feedEl.replaceChildren()
 	activitySection.classList.remove('hidden')
 	showStage('now')
@@ -210,6 +370,7 @@ async function runTask() {
 		setStatus('error')
 	} finally {
 		clearThinking()
+		_clearAnimation()
 		stopRunMeta()
 	}
 }
@@ -396,14 +557,28 @@ function note(text: string, kind: 'ok' | 'err' | '' = '') {
 
 function onActivity(a: AgentActivity) {
 	if (a.type === 'thinking') {
-		nowActionEl.textContent = 'Thinking…'
-		if (!thinkingEl) thinkingEl = makeEntry('sparkle', 'Thinking…', 'thinking')
+		// While thinking we don't yet know if this will be a task or question.
+		// Show quiet shimmer in question mode; if already upgraded, show scramble.
+		if (runMode === 'question') {
+			setNowAction('Analyzing…', 'shimmer')
+		} else {
+			setNowAction('Thinking…', 'scramble')
+		}
+		if (!thinkingEl) thinkingEl = makeEntry('sparkle', runMode === 'question' ? 'Analyzing…' : 'Thinking…', 'thinking')
 	} else if (a.type === 'executing') {
 		clearThinking()
 		stepCount++
 		updateRunMeta()
 		const meta = TOOL_META[a.tool] ?? { icon: 'bolt', label: a.tool.replaceAll('_', ' '), now: 'Working…' }
-		nowActionEl.textContent = meta.now
+
+		// Auto-detect: if the agent is executing a real action tool (not just 'done'),
+		// upgrade from question → task mode right now, mid-run.
+		if (!QUESTION_TOOLS.has(a.tool)) {
+			_upgradeToTaskMode()
+		}
+
+		// Task mode → cascade; question mode (e.g. only 'done' fired) → swap
+		setNowAction(meta.now, runMode === 'task' ? 'cascade' : 'swap')
 		lastExecEl = makeEntry(meta.icon, meta.label, a.tool === 'ask_user' ? 'is-warn' : '')
 		lastExecEl.dataset.tool = a.tool
 	} else if (a.type === 'executed') {
