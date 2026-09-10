@@ -569,6 +569,11 @@ async function runTask() {
 	nowEl.classList.add('mode-question')
 	setNowAction('Analyzing…', 'shimmer')
 
+	// 1. Launch arrow animation and morph send button to red stop button
+	runBtnActivate()
+	// Allow the morph & arrow launch animation to play visibly before stage switch
+	await new Promise((r) => setTimeout(r, 260))
+
 	feedEl.replaceChildren()
 	activitySection.classList.remove('hidden')
 	showStage('now')
@@ -588,6 +593,8 @@ async function runTask() {
 		clearThinking()
 		_clearAnimation()
 		stopRunMeta()
+		stopBtn.classList.remove('stopping')
+		runBtnRevert()      // ← stop square flies off, arrow returns
 	}
 }
 
@@ -609,6 +616,7 @@ async function showAgentResult(success: boolean, text: string) {
 }
 
 async function resetToComposer() {
+	stopBtn.classList.remove('stopping')
 	try {
 		await agent?.stop()
 	} catch {
@@ -622,11 +630,63 @@ async function resetToComposer() {
 	activitySection.classList.add('hidden')
 	showStage('composer')
 	setStatus('idle')
+	runBtnRevert()          // ← morph back to arrow
 	taskEl.focus()
 }
 
-$('run').addEventListener('click', () => void runTask())
-$('stop').addEventListener('click', () => agent?.stop())
+// ---------- unified run ↔ stop button ----------
+
+const runBtn = $<HTMLButtonElement>('run')
+const stopBtn = $<HTMLButtonElement>('stop')
+
+/** Morph arrow → stop square with a brief animation burst. */
+function runBtnActivate() {
+	runBtn.setAttribute('aria-label', 'Stop task')
+	runBtn.title = 'Stop'
+	runBtn.classList.add('running', 'launching')
+	setTimeout(() => runBtn.classList.remove('launching'), 320)
+}
+
+/** Revert stop → arrow. */
+function runBtnRevert() {
+	runBtn.setAttribute('aria-label', 'Run task')
+	runBtn.title = 'Run'
+	runBtn.classList.remove('running', 'launching')
+	stopBtn.classList.remove('stopping')
+	// Re-evaluate enabled state from textarea
+	runBtn.disabled = !taskEl.value.trim()
+}
+
+// Enable the button only when the textarea has content
+taskEl.addEventListener('input', () => {
+	taskEl.style.height = 'auto'
+	taskEl.style.height = `${Math.min(taskEl.scrollHeight, 180)}px`
+	// Only toggle enabled when idle (not while running)
+	if (!runBtn.classList.contains('running')) {
+		runBtn.disabled = !taskEl.value.trim()
+	}
+})
+
+// Unified click handler on runBtn: run when idle, stop when running
+runBtn.addEventListener('click', () => {
+	if (runBtn.classList.contains('running')) {
+		stopBtn.classList.add('stopping')
+		setNowAction('Stopping…', 'shimmer')
+		setStatus('stopped')
+		void agent?.stop()
+	} else {
+		void runTask()
+	}
+})
+
+// Stop button in the running (#now) card
+stopBtn.addEventListener('click', () => {
+	stopBtn.classList.add('stopping')
+	setNowAction('Stopping…', 'shimmer')
+	setStatus('stopped')
+	void agent?.stop()
+})
+
 restartBtn.addEventListener('click', () => void resetToComposer())
 $('result-new').addEventListener('click', () => void resetToComposer())
 $('result-retry').addEventListener('click', () => void runTask())
@@ -634,12 +694,10 @@ $('result-retry').addEventListener('click', () => void runTask())
 taskEl.addEventListener('keydown', (e) => {
 	if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 		e.preventDefault()
-		void runTask()
+		if (!runBtn.disabled && !runBtn.classList.contains('running')) {
+			void runTask()
+		}
 	}
-})
-taskEl.addEventListener('input', () => {
-	taskEl.style.height = 'auto'
-	taskEl.style.height = `${Math.min(taskEl.scrollHeight, 180)}px`
 })
 
 // manual capture of the current tab

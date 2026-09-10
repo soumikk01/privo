@@ -111,9 +111,15 @@ h1 { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
 	min-height: 70px; max-height: 180px;
 }
 .composer textarea::placeholder { color: var(--ink-3); }
-.composer-foot {
-	display: flex; justify-content: space-between; align-items: center;
-	padding: 8px 10px 10px 14px;
+
+/* ── Persistent run/stop bar — composer footer ── */
+.run-bar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 7px 10px 10px 14px;
+	border-top: 1px solid var(--line);
+	flex-shrink: 0;
 }
 .kbd-hint { font-size: 11px; color: var(--ink-3); }
 kbd {
@@ -121,6 +127,115 @@ kbd {
 	background: var(--surface-2); border: 1px solid var(--line);
 	border-radius: 4px; padding: 2px 4px; margin-right: 2px;
 	color: var(--ink-2);
+}
+
+/* ── Morphing run → stop circle button ── */
+.run-btn {
+	position: relative;
+	width: 36px; height: 36px;
+	border-radius: 50%;
+	border: none;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+	display: grid; place-items: center;
+	overflow: visible;
+	transition: background 0.28s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s, transform 0.15s;
+	box-shadow: 0 2px 8px rgba(23, 95, 255, 0.32);
+	flex-shrink: 0;
+}
+.run-btn:disabled {
+	background: var(--line-strong);
+	box-shadow: none;
+	cursor: default;
+	color: var(--ink-3);
+}
+.run-btn:not(:disabled):hover {
+	filter: brightness(1.1);
+	transform: scale(1.06);
+}
+.run-btn:not(:disabled):active { transform: scale(0.94); }
+
+.run-btn-inner {
+	position: relative;
+	width: 20px; height: 20px;
+	display: grid; place-items: center;
+	overflow: hidden;
+	border-radius: 50%;
+}
+
+/* Arrow icon — visible by default */
+.icon-arrow {
+	position: absolute;
+	width: 18px; height: 18px;
+	transform: translateX(0) scale(1);
+	opacity: 1;
+	transition: opacity 0.2s cubic-bezier(0.4, 0, 1, 1), transform 0.26s cubic-bezier(0.4, 0, 1, 1);
+}
+/* Stop square — hidden by default */
+.icon-stop {
+	position: absolute;
+	width: 13px; height: 13px;
+	opacity: 0;
+	transform: scale(0.2) rotate(25deg);
+	transition: opacity 0.2s cubic-bezier(0, 0, 0.2, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Running state ── */
+.run-btn.running {
+	background: var(--bad);
+	box-shadow: 0 2px 12px rgba(217, 48, 37, 0.42);
+}
+.run-btn.running .icon-arrow {
+	opacity: 0;
+	transform: translateX(24px) scale(0.7);
+}
+.run-btn.running .icon-stop {
+	opacity: 1;
+	transform: scale(1) rotate(0deg);
+}
+
+/* Burst on launch: cool tactile expansion */
+.run-btn.launching {
+	animation: btn-burst 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes btn-burst {
+	0%   { transform: scale(1); }
+	40%  { transform: scale(1.15); }
+	100% { transform: scale(1); }
+}
+
+/* Pulsing ring when running */
+.run-btn.running::after {
+	content: '';
+	position: absolute;
+	inset: -3px;
+	border-radius: 50%;
+	border: 2px solid var(--bad);
+	opacity: 0.7;
+	animation: run-ring 1.5s ease-out infinite;
+	pointer-events: none;
+}
+@keyframes run-ring {
+	0%   { transform: scale(0.95); opacity: 0.8; }
+	60%  { transform: scale(1.4);  opacity: 0; }
+	100% { transform: scale(1.4);  opacity: 0; }
+}
+
+/* Stopping state: user clicked stop */
+.run-btn.stopping {
+	opacity: 0.65;
+	pointer-events: none;
+	animation: stop-spin 0.8s linear infinite;
+}
+@keyframes stop-spin {
+	0%   { transform: scale(0.95) rotate(0deg); }
+	100% { transform: scale(0.95) rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.run-btn, .run-btn-inner, .icon-arrow, .icon-stop,
+	.run-btn.running::after, .run-btn.launching, .run-btn.stopping { animation: none; transition: none; }
 }
 
 /* running / now */

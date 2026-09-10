@@ -31,9 +31,20 @@
 				placeholder="e.g. Log in, go to My Orders, and take a sealed screenshot of the last order"
 				spellcheck="false"
 			></textarea>
-			<div class="composer-foot">
+			<!-- Persistent run/stop bar — lives inside the composer card footer -->
+			<div class="run-bar">
 				<span class="kbd-hint"><kbd>⌘</kbd><kbd>↵</kbd> to run</span>
-				<button id="run" class="btn btn-primary">Run</button>
+				<button id="run" class="run-btn" disabled aria-label="Run task" title="Run">
+					<span class="run-btn-inner">
+						<svg class="icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+							<line x1="5" y1="12" x2="19" y2="12"/>
+							<polyline points="13 6 19 12 13 18"/>
+						</svg>
+						<svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor">
+							<rect x="6" y="6" width="12" height="12" rx="2"/>
+						</svg>
+					</span>
+				</button>
 			</div>
 		</section>
 
@@ -55,7 +66,13 @@
 					</div>
 					<p id="now-meta" class="now-meta">step 0 · 0:00</p>
 				</div>
-				<button id="stop" class="btn btn-danger">Stop</button>
+				<button id="stop" class="run-btn running" aria-label="Stop task" title="Stop">
+					<span class="run-btn-inner">
+						<svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor">
+							<rect x="6" y="6" width="12" height="12" rx="2"/>
+						</svg>
+					</span>
+				</button>
 			</div>
 			<details class="task-toggle">
 				<summary>View task</summary>
